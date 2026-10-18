@@ -4,6 +4,7 @@ import 'package:auto_route/auto_route.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:iconsax_plus/iconsax_plus.dart';
 
+import 'package:fladder/jt/widgets/jt_login_background.dart';
 import 'package:fladder/models/account_model.dart';
 import 'package:fladder/models/login_screen_model.dart';
 import 'package:fladder/providers/auth_provider.dart';
@@ -100,7 +101,8 @@ class _LoginPageState extends ConsumerState<LoginScreen> {
               ),
             _ => null,
           },
-          body: Center(
+          body: JtLoginBackground( // JT-HOOK: login-background
+            child: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(
                 maxWidth: 1000,
@@ -129,6 +131,7 @@ class _LoginPageState extends ConsumerState<LoginScreen> {
                       ],
                     ),
             ),
+          ),
           ),
         ),
       ),

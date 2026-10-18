@@ -96,6 +96,23 @@ abstract final class JtTheme {
   /// Verhouding van de "Recent toegevoegd"-rij per bibliotheektype. Niet vermeld = upstream.
   static const Map<CollectionType, double> libraryTileRatio = {};
 
+  // ------------------------------------------------------- Aanmeldpagina
+
+  /// Achtergrondbeeld op de aanmeldpagina (server kiezen en inloggen). `false` = upstream.
+  static const bool loginBackground = true;
+
+  /// Het beeld. Gemaakt door `tool/jt/generate-icons.ps1` uit `assets/jt/source/Logo_JT-Streaming.png`.
+  static const String loginBackgroundAsset = 'assets/jt/login_background.jpg';
+
+  /// Dekking van het beeld boven de achtergrondkleur van het thema (0 = onzichtbaar, 1 = vol).
+  static const double loginBackgroundOpacity = 0.35;
+
+  /// Extra laag in de achtergrondkleur van het thema boven het beeld (0 = geen, 0.6 = sterk gedempt).
+  static const double loginBackgroundOverlay = 0.0;
+
+  /// Vervaging van het beeld in logische pixels (0 = uit).
+  static const double loginBackgroundBlur = 2;
+
   // --------------------------------------------------------------- Intern
 
   /// Basisschema van JT-Streaming (gebruikt als geen eigen themakleur gekozen is).

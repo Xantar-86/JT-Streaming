@@ -49,9 +49,44 @@ Opmerkingen:
 | Wil je ... | Pas aan |
 |---|---|
 | de weergavenaam | `lib/jt/jt_brand.dart` → `appName` (de webtitel staat daarnaast in `web/index.html` en `web/manifest.json`) |
-| het logo/icoon | vervang de bronbestanden en hashes, zie `tool/jt/generate-icons.ps1 -SourceDir <map>` |
+| het logo/icoon | vervang de bronbestanden en hashes, zie `tool/jt/generate-icons.ps1 -SourceDir <map>` (zie *Iconen en favicon*) |
 | de URL van de fork op het Over-scherm | `lib/jt/jt_brand.dart` → `forkUrl` |
 | standaardinstellingen voor nieuwe installaties | `lib/jt/jt_defaults.dart` |
+
+### Achtergrond van de aanmeldpagina
+
+De aanmeldpagina (server kiezen en inloggen) toont `assets/jt/login_background.jpg` paginavullend
+(`BoxFit.cover`, gecentreerd; op smalle schermen wordt het beeld bijgesneden), gedempt boven de
+achtergrondkleur van het thema. Alle waarden staan in **`lib/jt/jt_theme.dart`**, blok *Aanmeldpagina*:
+
+| Wil je ... | Pas aan | Voorbeeld |
+|---|---|---|
+| de achtergrond uitzetten (upstream) | `loginBackground` | `false` |
+| een ander beeld | `loginBackgroundAsset` (bestand in `assets/jt/`) | `'assets/jt/mijn_beeld.jpg'` |
+| het beeld sterker of zwakker tonen | `loginBackgroundOpacity` (0-1) | `0.25` = zwakker, `0.5` = sterker |
+| sterker dempen met een extra laag | `loginBackgroundOverlay` (0-1, kleur = themakleur) | `0.6` |
+| meer of minder vervaging | `loginBackgroundBlur` (0 = uit) | `6` |
+
+Een ander beeld met dezelfde optimalisatie (1600 px breed, JPEG kwaliteit 80, nu 183 697 bytes):
+vervang `assets/jt/source/Logo_JT-Streaming.png` (en de hash in `tool/jt/generate-icons.ps1`) en draai
+`pwsh tool/jt/generate-icons.ps1`; daarna één rebuild. Upstream-aanraking: één wrapper
+(`JtLoginBackground`, `// JT-HOOK: login-background`) rond de `body` van `lib/screens/login/login_screen.dart`.
+
+### Iconen en favicon
+
+Alles komt uit `pwsh tool/jt/generate-icons.ps1` (ook aangeroepen door `build-web.ps1`); niets met de hand.
+
+| Bestand | Inhoud |
+|---|---|
+| `web/favicon.png` (32x32) | JT-monogram |
+| `web/favicon.ico`, `windows/runner/resources/app_icon.ico` | 16/32 px monogram, 48/64/256 px volledig logo (PNG-lagen) |
+| `web/icons/Icon-192/512` (+ maskable), apple-touch-icon | volledig logo (icons_launcher) |
+| `assets/jt/source/Favicon_JT-Streaming-monogram.png` (512x512) | het monogram zelf, ter controle |
+
+Het monogram is **getekend**, niet uitgesneden: de foto-textuur in de letters van het logo is op 32 px
+onleesbaar. Andere vorm of kleuren? Pas de punten/kleuren in stap 3 van `generate-icons.ps1` aan en draai
+het script. Nieuw icoon? Verhoog ook de cache-buster `?v=jt4` in `web/index.html`, anders tonen
+browsers nog het oude icoon.
 
 ### Hooks in upstream-bestanden
 
@@ -165,7 +200,7 @@ Per conflict:
 Daarna:
 
 ```powershell
-git grep -c "JT-HOOK" -- lib ":!lib/jt"   # verwacht: 41 regels in 19 bestanden (stand WP2.1, Windows-build)
+git grep -c "JT-HOOK" -- lib ":!lib/jt"   # verwacht: 42 regels in 20 bestanden (stand jt.4, achtergrond aanmeldpagina)
 git grep -c "JT-PATCH" -- third_party ":!*.md"   # verwacht: 9 regels in 2 bestanden (stand jt.3)
 flutter analyze
 flutter test
