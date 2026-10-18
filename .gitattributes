@@ -1,0 +1,16 @@
+# JT-Streaming: vaste regeleinden, onafhankelijk van core.autocrlf op de bouwmachine.
+# Shellscripts moeten LF zijn: met CRLF start de container niet (/bin/sh^M).
+* text=auto eol=lf
+*.sh text eol=lf
+docker-entrypoint.sh text eol=lf
+
+# Binaire bestanden nooit normaliseren.
+*.png binary
+*.jpg binary
+*.ico binary
+*.ttf binary
+*.otf binary
+*.tar binary
+
+# Upstream-bestand dat in de index met CRLF staat; niet normaliseren om geen upstream-diff te maken.
+icons/tomato.svg -text
