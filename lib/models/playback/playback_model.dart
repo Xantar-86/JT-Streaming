@@ -42,6 +42,7 @@ import 'package:fladder/util/bitrate_helper.dart';
 import 'package:fladder/util/duration_extensions.dart';
 import 'package:fladder/util/localization_helper.dart';
 import 'package:fladder/util/map_bool_helper.dart';
+import 'package:fladder/util/stream_url.dart';
 import 'package:fladder/util/streams_selection.dart';
 import 'package:fladder/wrappers/media_control_wrapper.dart';
 
@@ -454,25 +455,13 @@ class PlaybackModelHelper {
       }
 
       if ((mediaSource.supportsDirectStream ?? false) || (mediaSource.supportsDirectPlay ?? false)) {
-        final Map<String, String?> directOptions = {
-          'Static': 'true',
-          'mediaSourceId': mediaSource.id,
-          'api_key': ref.read(userProvider)?.credentials.token,
-        };
-
-        if (mediaSource.eTag != null) {
-          directOptions['Tag'] = mediaSource.eTag;
-        }
-
-        if (mediaSource.liveStreamId != null) {
-          directOptions['LiveStreamId'] = mediaSource.liveStreamId;
-        }
-
-        final playbackUrl = buildServerUrl(
-          ref,
-          pathSegments: ['Videos', mediaSource.id!, 'stream'],
-          queryParameters: directOptions,
-        );
+        final playbackUrl = directStreamUri(
+              ref.read(serverUrlProvider),
+              itemId: item.id,
+              mediaSource: mediaSource,
+              token: ref.read(userProvider)?.credentials.token,
+            )?.toString() ??
+            '';
 
         return DirectPlaybackModel(
           item: item,
@@ -597,25 +586,13 @@ class PlaybackModelHelper {
     PlaybackModel? newModel;
 
     if ((mediaSource.supportsDirectStream ?? false) || (mediaSource.supportsDirectPlay ?? false)) {
-      final Map<String, String?> directOptions = {
-        'Static': 'true',
-        'mediaSourceId': mediaSource.id,
-        'api_key': ref.read(userProvider)?.credentials.token,
-      };
-
-      if (mediaSource.eTag != null) {
-        directOptions['Tag'] = mediaSource.eTag;
-      }
-
-      if (mediaSource.liveStreamId != null) {
-        directOptions['LiveStreamId'] = mediaSource.liveStreamId;
-      }
-
-      final directPlay = buildServerUrl(
-        ref,
-        pathSegments: ['Videos', mediaSource.id ?? '', 'stream'],
-        queryParameters: directOptions,
-      );
+      final directPlay = directStreamUri(
+            ref.read(serverUrlProvider),
+            itemId: item.id,
+            mediaSource: mediaSource,
+            token: ref.read(userProvider)?.credentials.token,
+          )?.toString() ??
+          '';
 
       final mediaPath = isValidVideoUrl(mediaSource.path ?? "");
 

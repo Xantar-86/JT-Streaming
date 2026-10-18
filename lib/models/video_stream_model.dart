@@ -14,6 +14,7 @@ import 'package:fladder/models/syncing/sync_item.dart';
 import 'package:fladder/providers/api_provider.dart';
 import 'package:fladder/providers/user_provider.dart';
 import 'package:fladder/util/localization_helper.dart';
+import 'package:fladder/util/stream_url.dart';
 
 enum PlaybackType {
   directStream,
@@ -161,7 +162,7 @@ class VideoStream {
     );
   }
 
-  static VideoStream? fromPlayBackInfo(PlaybackInfoResponse info, Ref ref) {
+  static VideoStream? fromPlayBackInfo(PlaybackInfoResponse info, Ref ref, {required String itemId}) {
     final mediaSource = info.mediaSources?.first;
     var playType = PlaybackType.directStream;
 
@@ -170,25 +171,13 @@ class VideoStream {
     if (mediaSource == null) return null;
 
     if (mediaSource.supportsDirectStream ?? false) {
-      final Map<String, String?> directOptions = {
-        'Static': 'true',
-        'mediaSourceId': mediaSource.id,
-        'api_key': ref.read(userProvider)?.credentials.token,
-      };
-
-      if (mediaSource.eTag != null) {
-        directOptions['Tag'] = mediaSource.eTag;
-      }
-
-      if (mediaSource.liveStreamId != null) {
-        directOptions['LiveStreamId'] = mediaSource.liveStreamId;
-      }
-
-      playbackUrl = buildServerUrl(
-        ref,
-        pathSegments: ['Videos', mediaSource.id ?? '', 'stream'],
-        queryParameters: directOptions,
-      );
+      playbackUrl = directStreamUri(
+            ref.read(serverUrlProvider),
+            itemId: itemId,
+            mediaSource: mediaSource,
+            token: ref.read(userProvider)?.credentials.token,
+          )?.toString() ??
+          '';
     } else if ((mediaSource.supportsTranscoding ?? false) && mediaSource.transcodingUrl != null) {
       playbackUrl = buildServerUrl(ref, relativeUrl: mediaSource.transcodingUrl);
       playType = PlaybackType.transcode;
