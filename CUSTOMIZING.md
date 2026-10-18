@@ -73,6 +73,9 @@ pwsh tool/jt/build-web.ps1 -Clean -BuildNumber 1
   `jt-streaming-web/` (Docker-build-context met het ongewijzigde upstream-`Dockerfile`),
   `jt-streaming-web-<versie>.tar` en `.tar.sha256`. Versie = `0.11.1-jt.<BuildNumber>`.
 - Exitcode ≠ 0 bij elke fout.
+- Testnorm: `flutter analyze` geeft 0 meldingen en `flutter test` is volledig groen, **behalve 1 bekend
+  rode upstream-test `test/widget_test.dart`** (al rood op upstream `v0.11.1`, "No ProviderScope").
+  Dat bestand laten we bewust ongewijzigd (upstream-bestand, minder rebase-conflicten).
 - Op een Windows-machine zonder symlink-rechten (geen Developer Mode) zet het script de
   desktop-feature-flags van Flutter tijdelijk uit; voor de webbuild zijn die niet nodig.
 
