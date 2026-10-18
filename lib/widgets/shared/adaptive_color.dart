@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 // ignore: depend_on_referenced_packages
 import 'package:material_color_utilities/material_color_utilities.dart';
 
+import 'package:fladder/jt/jt_theme.dart';
 import 'package:fladder/providers/settings/client_settings_provider.dart';
 import 'package:fladder/theme.dart';
 import 'package:fladder/util/themes_data.dart';
@@ -81,17 +82,20 @@ class AdaptiveColorState extends ConsumerState<AdaptiveColor> with WidgetsBindin
   Widget build(BuildContext context) {
     final isLinux = defaultTargetPlatform == TargetPlatform.linux;
     final themeColor = ref.watch(clientSettingsProvider.select((value) => value.themeColor));
-    final schemeVariant = ref.watch(clientSettingsProvider.select((value) => value.schemeVariant));
+    final userSchemeVariant = ref.watch(clientSettingsProvider.select((value) => value.schemeVariant));
+    final schemeVariant = JtTheme.schemeVariant ?? userSchemeVariant; // JT-HOOK: accent
 
     final fallbackLight = FladderTheme.defaultScheme(Brightness.light);
     final fallbackDark = FladderTheme.defaultScheme(Brightness.dark);
+    final systemLight = JtTheme.overrideSystemAccent ? null : _light; // JT-HOOK: accent
+    final systemDark = JtTheme.overrideSystemAccent ? null : _dark; // JT-HOOK: accent
 
     final baseLightTheme = themeColor == null
-        ? FladderTheme.theme(_light ?? fallbackLight, schemeVariant)
+        ? FladderTheme.theme(systemLight ?? fallbackLight, schemeVariant)
         : FladderTheme.theme(themeColor.schemeLight, schemeVariant);
 
     final baseDarkTheme = themeColor == null
-        ? FladderTheme.theme(_dark ?? fallbackDark, schemeVariant)
+        ? FladderTheme.theme(systemDark ?? fallbackDark, schemeVariant)
         : FladderTheme.theme(themeColor.schemeDark, schemeVariant);
 
     // Apply fonts

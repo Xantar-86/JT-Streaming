@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:chinese_font_library/chinese_font_library.dart';
 import 'package:dynamic_color/dynamic_color.dart';
 
+import 'package:fladder/jt/jt_theme.dart';
 import 'package:fladder/theme/fonts.dart';
-import 'package:fladder/util/custom_color_themes.dart';
 
 ColorScheme? generateDynamicColourSchemes(ColorScheme? theme, DynamicSchemeVariant dynamicSchemeVariant) {
   if (theme == null) return null;
@@ -31,9 +31,12 @@ ColorScheme _insertAdditionalColours(ColorScheme scheme) => scheme.copyWith(
     );
 
 class FladderTheme {
-  static RoundedRectangleBorder get smallShape => RoundedRectangleBorder(borderRadius: BorderRadius.circular(12));
-  static RoundedRectangleBorder get defaultShape => RoundedRectangleBorder(borderRadius: BorderRadius.circular(16));
-  static RoundedRectangleBorder get largeShape => RoundedRectangleBorder(borderRadius: BorderRadius.circular(32));
+  static RoundedRectangleBorder get smallShape =>
+      RoundedRectangleBorder(borderRadius: BorderRadius.circular(JtTheme.radiusSmall)); // JT-HOOK: radius
+  static RoundedRectangleBorder get defaultShape =>
+      RoundedRectangleBorder(borderRadius: BorderRadius.circular(JtTheme.radiusDefault)); // JT-HOOK: radius
+  static RoundedRectangleBorder get largeShape =>
+      RoundedRectangleBorder(borderRadius: BorderRadius.circular(JtTheme.radiusLarge)); // JT-HOOK: radius
 
   static BoxDecoration get defaultPosterDecoration => BoxDecoration(
         borderRadius: FladderTheme.smallShape.borderRadius,
@@ -56,7 +59,7 @@ class FladderTheme {
     final textTheme = FladderFonts.rubikTextTheme(
       const TextTheme(),
     );
-    return ThemeData(
+    final theme = ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
       sliderTheme: SliderThemeData(
@@ -196,10 +199,11 @@ class FladderTheme {
         ),
       ),
     );
+    return JtTheme.apply(theme, colorScheme); // JT-HOOK: theme-apply
   }
 
   static ColorScheme defaultScheme(Brightness brightness) {
-    return ColorScheme.fromSeed(seedColor: ColorThemes.fladder.color, brightness: brightness);
+    return JtTheme.defaultScheme(brightness); // JT-HOOK: accent (upstream: ColorThemes.fladder)
   }
 
   /// Apply Chinese system font to a light theme (for Windows, macOS, Android, iOS)

@@ -1,3 +1,4 @@
+import 'package:fladder/jt/jt_theme.dart';
 import 'package:fladder/models/items/images_models.dart';
 import 'package:fladder/jellyfin/jellyfin_open_api.enums.swagger.dart' as jelly;
 import 'package:flutter/material.dart';
@@ -89,7 +90,7 @@ class PosterImage extends ConsumerWidget {
     final derivePosterColor = ref.watch(clientSettingsProvider.select((value) => value.dynamicPosterColors));
     final isChannel = poster is ChannelModel;
     final backgroundColor = isChannel
-        ? Theme.of(context).colorScheme.surfaceContainerHigh
+        ? JtTheme.channelTileBackground ?? Theme.of(context).colorScheme.surfaceContainerHigh // JT-HOOK: channel-tile
         : derivePosterColor
             ? poster.title.toColor.harmonizeWith(Theme.of(context).colorScheme.surface)
             : Theme.of(context).colorScheme.surface;
@@ -124,7 +125,7 @@ class PosterImage extends ConsumerWidget {
           // Channel logos are wide, show them in full instead of cropping them.
           child: isChannel
               ? Padding(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(JtTheme.channelLogoPadding), // JT-HOOK: channel-tile
                   child: FladderImage(
                     image: poster.images?.primary ?? _resolveImage(),
                     placeHolder: PosterPlaceholder(item: poster),

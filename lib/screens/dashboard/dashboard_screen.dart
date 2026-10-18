@@ -8,6 +8,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:fladder/jellyfin/jellyfin_open_api.enums.swagger.dart';
 import 'package:fladder/jellyfin/jellyfin_open_api.swagger.dart';
+import 'package:fladder/jt/jt_home.dart';
+import 'package:fladder/jt/jt_theme.dart';
 import 'package:fladder/models/collection_types.dart';
 import 'package:fladder/models/item_base_model.dart';
 import 'package:fladder/models/library_search/library_search_options.dart';
@@ -138,7 +140,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   route: LibrarySearchRoute(),
                   parent: context,
                 ),
-              if (homeBanner && homeCarouselItems.isNotEmpty) ...{
+              if (homeBanner && JtHome.shows(JtHomeRow.banner) && homeCarouselItems.isNotEmpty) ...{
+                // JT-HOOK: home-rows
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: AdaptiveLayout.adaptivePadding(
@@ -164,6 +167,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               ...[
                 if (tvChannels.isNotEmpty)
                   PosterRow(
+                    key: const JtRowKey(JtHomeRow.liveTv), // JT-HOOK: home-rows
                     contentPadding: padding,
                     tvMode: useTVExpandedLayout,
                     label: context.localized.activeTvChannels,
@@ -176,6 +180,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 if (resumeVideo.isNotEmpty &&
                     (homeSettings.nextUp == HomeNextUp.cont || homeSettings.nextUp == HomeNextUp.separate))
                   PosterRow(
+                    key: const JtRowKey(JtHomeRow.continueWatching), // JT-HOOK: home-rows
                     tvMode: useTVExpandedLayout,
                     contentPadding: padding,
                     label: context.localized.dashboardContinueWatching,
@@ -184,6 +189,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 if (resumeAudio.isNotEmpty &&
                     (homeSettings.nextUp == HomeNextUp.cont || homeSettings.nextUp == HomeNextUp.separate))
                   PosterRow(
+                    key: const JtRowKey(JtHomeRow.continueListening), // JT-HOOK: home-rows
                     tvMode: useTVExpandedLayout,
                     contentPadding: padding,
                     label: context.localized.dashboardContinueListening,
@@ -192,6 +198,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 if (resumeBooks.isNotEmpty &&
                     (homeSettings.nextUp == HomeNextUp.cont || homeSettings.nextUp == HomeNextUp.separate))
                   PosterRow(
+                    key: const JtRowKey(JtHomeRow.continueReading), // JT-HOOK: home-rows
                     tvMode: useTVExpandedLayout,
                     contentPadding: padding,
                     label: context.localized.dashboardContinueReading,
@@ -200,6 +207,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 if (dashboardData.nextUp.isNotEmpty &&
                     (homeSettings.nextUp == HomeNextUp.nextUp || homeSettings.nextUp == HomeNextUp.separate))
                   PosterRow(
+                    key: const JtRowKey(JtHomeRow.nextUp), // JT-HOOK: home-rows
                     tvMode: useTVExpandedLayout,
                     contentPadding: padding,
                     label: context.localized.nextUp,
@@ -207,6 +215,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   ),
                 if ([...allResume, ...dashboardData.nextUp].isNotEmpty && homeSettings.nextUp == HomeNextUp.combined)
                   PosterRow(
+                    key: const JtRowKey(JtHomeRow.continueCombined), // JT-HOOK: home-rows
                     tvMode: useTVExpandedLayout,
                     contentPadding: padding,
                     label: context.localized.dashboardContinue,
@@ -216,8 +225,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     .where(
                       (element) => element.recentlyAdded.isNotEmpty && element.collectionType != CollectionType.livetv,
                     )
+                    .where(JtHome.showLibrary) // JT-HOOK: home-libraries
                     .map(
                       (view) => PosterRow(
+                        key: JtRowKey(JtHomeRow.latestPerLibrary, view.id), // JT-HOOK: home-rows
                         tvMode: useTVExpandedLayout,
                         contentPadding: padding,
                         label: context.localized.dashboardRecentlyAdded(view.name),
@@ -254,6 +265,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               ]
                   .nonNulls
                   .toList()
+                  .jtArrange() // JT-HOOK: home-rows
                   .mapIndexed(
                     (index, child) => SliverToBoxAdapter(
                       child: FocusProvider(
@@ -265,7 +277,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   .toList()
                   .addInBetween(
                     const SliverToBoxAdapter(
-                      child: SizedBox(height: 16),
+                      child: SizedBox(height: JtTheme.rowSpacing), // JT-HOOK: row-spacing
                     ),
                   ),
               const DefaultSliverBottomPadding(),

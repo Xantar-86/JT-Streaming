@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:fladder/jt/jt_theme.dart';
+
 class FladderFonts {
   static TextTheme rubikTextTheme([TextTheme? textTheme]) {
     textTheme ??= ThemeData.light().textTheme;
@@ -110,6 +112,6 @@ class FladderFonts {
           const FontVariation('wght', 400),
         ],
       ),
-    );
+    ).apply(fontFamily: JtTheme.fontFamily); // JT-HOOK: font
   }
 }

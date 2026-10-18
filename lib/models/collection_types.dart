@@ -4,6 +4,7 @@ import 'package:iconsax_plus/iconsax_plus.dart';
 
 import 'package:fladder/jellyfin/jellyfin_open_api.enums.swagger.dart';
 import 'package:fladder/jellyfin/jellyfin_open_api.swagger.dart';
+import 'package:fladder/jt/jt_theme.dart';
 import 'package:fladder/models/item_base_model.dart';
 import 'package:fladder/models/library_filter_model.dart';
 
@@ -137,7 +138,10 @@ extension CollectionTypeExtension on CollectionType? {
         isDefault: true,
       );
 
-  double? get aspectRatio => switch (this) {
+  double? get aspectRatio =>
+      JtTheme.libraryTileRatio[this] ??
+      switch (this) {
+        // JT-HOOK: tile-ratio
         CollectionType.music ||
         CollectionType.homevideos ||
         CollectionType.boxsets ||

@@ -8,6 +8,7 @@ import 'package:iconsax_plus/iconsax_plus.dart';
 
 import 'package:fladder/jellyfin/jellyfin_open_api.enums.swagger.dart';
 import 'package:fladder/jellyfin/jellyfin_open_api.swagger.dart' as dto;
+import 'package:fladder/jt/jt_theme.dart';
 import 'package:fladder/l10n/generated/app_localizations.dart';
 import 'package:fladder/models/book_model.dart';
 import 'package:fladder/models/boxset_model.dart';
@@ -403,7 +404,10 @@ enum FladderItemType {
 
   const FladderItemType({required this.icon, required this.selectedicon});
 
-  double get aspectRatio => switch (this) {
+  double get aspectRatio =>
+      JtTheme.tileRatio[this] ??
+      switch (this) {
+        // JT-HOOK: tile-ratio
         FladderItemType.video => 0.8,
         FladderItemType.photo => 0.8,
         FladderItemType.photoAlbum => 0.8,
