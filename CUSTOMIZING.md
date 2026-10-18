@@ -79,6 +79,47 @@ pwsh tool/jt/build-web.ps1 -Clean -BuildNumber 1
 - Op een Windows-machine zonder symlink-rechten (geen Developer Mode) zet het script de
   desktop-feature-flags van Flutter tijdelijk uit; voor de webbuild zijn die niet nodig.
 
+### Windows-app en installer
+
+```powershell
+pwsh tool/jt/build-windows.ps1 -Clean -BuildNumber 2
+```
+
+- Zelfde Flutter-, lockfile- en icoonregels als de webbuild; versie = `0.11.1-jt.<BuildNumber>`.
+- Uitvoer: `build/windows/x64/runner/Release/JT-Streaming.exe` en in `dist/`:
+  `JT-Streaming-Windows-<versie>-Setup.exe` + `.sha256`. Exitcode ≠ 0 bij elke fout.
+- Vereist op de bouwmachine:
+  - **Developer Mode** (of admin): Flutter koppelt de Windows-plugins met symlinks. Het script stopt zonder.
+  - **Visual Studio (Build Tools) 2022** met de werklast *Desktop development with C++*
+    (`Microsoft.VisualStudio.Workload.VCTools`, incl. recommended) **plus ATL**
+    (`Microsoft.VisualStudio.Component.VC.ATL`, voor `flutter_local_notifications_windows`).
+  - **Rust via rustup** (`%USERPROFILE%\.cargo\bin` of `$env:CARGO_HOME\bin`), voor de plugin
+    `smtc_windows` (cargokit bouwt die uit bron). Per gebruiker te installeren, geen admin nodig.
+  - **Inno Setup 6** (`$env:JT_ISCC`, standaard `C:\paperclip\tools\InnoSetup-6.5.4\ISCC.exe`).
+- Installer: `tool/jt/windows_setup-jt.iss`, een kopie van upstream `windows/windows_setup.iss`
+  (dat bestand blijft ongewijzigd). Eigen `AppId` (`8185C3AD-…`), dus hij staat naast een
+  Fladder-installatie; installeert per gebruiker in `%LOCALAPPDATA%\Programs\JT-Streaming`,
+  bevat `LICENSE` (GPL-3.0), Nederlands + Engels. De wizardafbeeldingen maakt het script uit het
+  JT-logo in `build/jt-installer/`.
+- Bij deïnstallatie wordt gevraagd of de app-data weg mag (`%APPDATA%\JT-Streaming (fam. Thoelen)`,
+  naam volgt uit `CompanyName`/`ProductName` in `Runner.rc`); stil deïnstalleren laat de data staan.
+- De installer is **niet ondertekend**: Windows SmartScreen toont bij de eerste start
+  "Windows heeft uw pc beveiligd" / onbekende uitgever (*Meer info → Toch uitvoeren*).
+
+### Wijzigingen aan upstream-bestanden voor Windows (rebase-impact)
+
+| Bestand | Wijziging |
+|---|---|
+| `windows/CMakeLists.txt` | `BINARY_NAME` → `JT-Streaming` (exe-naam) |
+| `windows/runner/main.cpp` | venstertitel bij start → `JT-Streaming` (daarna zet `window_title_provider` `JtBrand.appName`) |
+| `windows/runner/Runner.rc` | versie-resource: CompanyName, FileDescription, InternalName, LegalCopyright, OriginalFilename, ProductName |
+| `windows/runner/resources/app_icon.ico` | JT-icoon (gegenereerd door `generate-icons.ps1`) |
+| `lib/services/notification_service.dart` | `appUserModelId`/`guid` → `JtBrand.windowsAppUserModelId` (`be.thoelen.jtstreaming`) en `JtBrand.windowsNotificationGuid` (2 hooks) |
+
+Bij een conflict in deze bestanden: neem de upstream-versie en zet onze regel(s) er opnieuw in.
+Niet gewijzigd: de mpv-venstertitel `nl.jknaapen.fladder` in `lib/wrappers/players/lib_mpv.dart`
+(intern, niet zichtbaar) en de Android/Flatpak-id's (buiten scope v1).
+
 ## Upstream binnenhalen (rebase)
 
 Remotes:
@@ -117,7 +158,7 @@ Per conflict:
 Daarna:
 
 ```powershell
-git grep -c "JT-HOOK" -- lib ":!lib/jt"   # verwacht: 39 regels in 19 bestanden (stand v0.11.1-jt.1)
+git grep -c "JT-HOOK" -- lib ":!lib/jt"   # verwacht: 41 regels in 19 bestanden (stand WP2.1, Windows-build)
 flutter analyze
 flutter test
 pwsh tool/jt/build-web.ps1 -Clean
