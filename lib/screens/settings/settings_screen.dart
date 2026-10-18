@@ -5,6 +5,7 @@ import 'package:auto_route/auto_route.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:iconsax_plus/iconsax_plus.dart';
 
+import 'package:fladder/jt/jt_brand.dart';
 import 'package:fladder/providers/arguments_provider.dart';
 import 'package:fladder/providers/auth_provider.dart';
 import 'package:fladder/providers/update_provider.dart';
@@ -171,7 +172,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
             SettingsListTile(
               label: Text(context.localized.about),
-              subLabel: Text("Fladder, ${context.localized.latestReleases}"),
+              subLabel: Text("${JtBrand.appName}, ${context.localized.latestReleases}"), // JT-HOOK: brand
               selected: containsRoute(const AboutSettingsRoute()),
               leading: Opacity(
                 opacity: 1,

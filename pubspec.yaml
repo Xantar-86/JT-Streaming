@@ -224,6 +224,7 @@ flutter:
     - config/
     - assets/mp-font.ttf
     - assets/
+    - assets/jt/
 
   fonts:
     - family: Rubik

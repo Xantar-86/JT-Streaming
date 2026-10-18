@@ -4,9 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:window_manager/window_manager.dart';
 
+import 'package:fladder/jt/jt_brand.dart';
 import 'package:fladder/models/settings/arguments_model.dart';
 import 'package:fladder/models/settings/client_settings_model.dart';
-import 'package:fladder/util/string_extensions.dart';
 
 extension WindowHelperSetup on WindowManager {
   Future<void> setupFladderWindowChrome(
@@ -18,11 +18,11 @@ extension WindowHelperSetup on WindowManager {
     final isMacDebug = defaultTargetPlatform == TargetPlatform.macOS && kDebugMode;
     final shouldResizeAndShow = !isMacDebug || !isFullScreen;
 
-    final options = WindowOptions(
+    final options = const WindowOptions(
       backgroundColor: Colors.transparent,
       skipTaskbar: false,
       titleBarStyle: TitleBarStyle.hidden,
-      title: packageInfo.appName.capitalize(),
+      title: JtBrand.appName, // JT-HOOK: brand
     );
 
     // Apply window chrome consistently; only skip waitUntilReadyToShow on macOS debug to avoid breaking full-screen during hot reloads.
@@ -43,7 +43,7 @@ extension WindowHelperSetup on WindowManager {
       await windowManager.setBackgroundColor(options.backgroundColor!);
       await windowManager.setSkipTaskbar(options.skipTaskbar ?? false);
       await windowManager.setTitleBarStyle(options.titleBarStyle!);
-      await windowManager.setTitle(options.title ?? packageInfo.appName.capitalize());
+      await windowManager.setTitle(options.title ?? JtBrand.appName); // JT-HOOK: brand
       await applyWindowState();
     } else {
       await windowManager.waitUntilReadyToShow(options, applyWindowState);

@@ -9,6 +9,7 @@ import 'package:local_auth/local_auth.dart';
 import 'package:local_auth_android/local_auth_android.dart';
 import 'package:local_auth_darwin/local_auth_darwin.dart';
 
+import 'package:fladder/jt/jt_brand.dart';
 import 'package:fladder/models/account_model.dart';
 import 'package:fladder/util/localization_helper.dart';
 
@@ -30,7 +31,7 @@ class AuthService {
               context.localized.authenticateWithBiometrics("(${user.name} - ${user.credentials.serverName})"),
           authMessages: <AuthMessages>[
             AndroidAuthMessages(
-              signInTitle: 'Fladder',
+              signInTitle: JtBrand.appName, // JT-HOOK: brand
               biometricHint: context.localized.scanBiometricHint,
             ),
             IOSAuthMessages(

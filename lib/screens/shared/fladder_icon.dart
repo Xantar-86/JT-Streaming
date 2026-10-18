@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'package:flutter_svg/flutter_svg.dart';
 
+import 'package:fladder/jt/jt_brand.dart';
 import 'package:fladder/util/theme_extensions.dart';
 
 class FladderIcon extends StatelessWidget {
@@ -12,6 +13,8 @@ class FladderIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // JT-HOOK: brand (JT-Streaming-icoon in plaats van het Fladder-icoon)
+    if (JtBrand.iconAsset.isNotEmpty) return JtBrand.icon(size);
     return Row(
       mainAxisSize: MainAxisSize.min,
       mainAxisAlignment: MainAxisAlignment.center,

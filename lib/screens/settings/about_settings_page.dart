@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:iconsax_plus/iconsax_plus.dart';
 
+import 'package:fladder/jt/jt_brand.dart';
+import 'package:fladder/jt/widgets/jt_about_attribution.dart';
 import 'package:fladder/models/funding_model.dart' as funding;
 import 'package:fladder/screens/crash_screen/crash_screen.dart';
 import 'package:fladder/screens/settings/settings_scaffold.dart';
@@ -58,6 +60,7 @@ class AboutSettingsPage extends ConsumerWidget {
             Text(context.localized.aboutCreatedBy),
           ],
         ),
+        const JtAboutAttribution(), // JT-HOOK: about
         const FractionallySizedBox(
           widthFactor: 0.25,
           child: Divider(
@@ -75,7 +78,7 @@ class AboutSettingsPage extends ConsumerWidget {
                 context: context,
                 applicationIcon: const FladderIcon(size: 55),
                 applicationVersion: applicationInfo.versionPlatformBuild,
-                applicationLegalese: "DonutWare",
+                applicationLegalese: JtBrand.legalese, // JT-HOOK: about
                 useRootNavigator: true,
               ),
               child: Text(context.localized.aboutLicenses),

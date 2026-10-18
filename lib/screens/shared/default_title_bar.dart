@@ -4,6 +4,7 @@ import 'package:flutter/material.dart' hide ConnectionState;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:window_manager/window_manager.dart';
 
+import 'package:fladder/jt/jt_brand.dart';
 import 'package:fladder/providers/arguments_provider.dart';
 import 'package:fladder/util/adaptive_layout/adaptive_layout.dart';
 import 'package:fladder/widgets/full_screen_helpers/full_screen_wrapper.dart';
@@ -198,7 +199,7 @@ class _DefaultTitleBarState extends ConsumerState<DefaultTitleBar> with WindowLi
                       ),
                     ),
                   TargetPlatform.macOS => const SizedBox.shrink(),
-                  _ => Text(widget.label ?? "Fladder"),
+                  _ => Text(widget.label ?? JtBrand.appName), // JT-HOOK: brand
                 },
               const StatusBanners()
             ],

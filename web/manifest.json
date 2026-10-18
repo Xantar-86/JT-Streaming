@@ -1,11 +1,11 @@
 {
-    "name": "Fladder",
-    "short_name": "Fladder",
+    "name": "JT-Streaming",
+    "short_name": "JT-Streaming",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#5B364D",
-    "theme_color": "#5B364D",
-    "description": "A simple cross-platform Jellyfin client.",
+    "background_color": "#0B0B0D",
+    "theme_color": "#D88F48",
+    "description": "JT-Streaming, gebaseerd op Fladder.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

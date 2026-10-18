@@ -1,0 +1,20 @@
+# JT-Streaming iconen (alleen web en Windows in v1).
+# Gebruik: pwsh tool/jt/generate-icons.ps1 (roept icons_launcher met dit bestand aan).
+icons_launcher:
+  image_path: "assets/jt/source/Favicon_JT-Streaming.png"
+  platforms:
+    android:
+      enable: false
+    ios:
+      enable: false
+    macos:
+      enable: false
+    linux:
+      enable: false
+    windows:
+      image_path: "assets/jt/source/Favicon_JT-Streaming.png"
+      enable: true
+    web:
+      image_path: "assets/jt/source/Favicon_JT-Streaming.png"
+      favicon_path: "assets/jt/source/Favicon_JT-Streaming.png"
+      enable: true
