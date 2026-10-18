@@ -78,6 +78,19 @@ pwsh tool/jt/build-web.ps1 -Clean -BuildNumber 1
 
 ## Upstream binnenhalen (rebase)
 
+Remotes:
+
+| Remote | URL | Gebruik |
+|---|---|---|
+| `upstream` | `https://github.com/DonutWare/Fladder` | alleen fetch; push-URL staat op `DISABLED-no-upstream-push` |
+| `origin` | `https://github.com/Xantar-86/JT-Streaming.git` | onze fork; we pushen alleen `jt/main` (en eventuele PR-branches) |
+
+In de fork staan `develop`, `main` en tag `v0.11.1` gelijk aan upstream (tag = `a30343a3`).
+Geen force-push op `main`/`develop`, en `v0.11.1` niet wijzigen. Het push-token komt nooit in de
+remote-URL: gebruik `git credential` of een eenmalige URL op de opdrachtregel, en controleer
+achteraf met `git remote -v`. Na een rebase is een push van `jt/main` een
+`git push --force-with-lease origin jt/main` (alleen op die branch).
+
 Onze commits staan bovenop upstream-tag `v0.11.1` op branch `jt/main`:
 
 1. `fix(playback)`, 2. `fix(live-tv)`, 3. `fix(ui)`: upstream-geschikt, geen `lib/jt/`-verwijzingen.
