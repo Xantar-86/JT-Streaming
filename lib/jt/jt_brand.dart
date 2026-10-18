@@ -14,8 +14,8 @@ abstract final class JtBrand {
   static const String upstreamUrl = 'https://github.com/DonutWare/Fladder';
   static const String upstreamBase = 'v0.11.1';
 
-  /// Broncode van deze fork. Leeg tot de GitHub-fork bestaat (board-besluit B2).
-  static const String forkUrl = '';
+  /// Broncode van deze fork (board-besluit B2).
+  static const String forkUrl = 'https://github.com/Xantar-86/JT-Streaming';
 
   /// Tekst onder de versie in het licentiescherm.
   static const String legalese = 'JT-Streaming, gebaseerd op Fladder © DonutWare, GPL-3.0';

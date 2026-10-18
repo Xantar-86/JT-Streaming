@@ -1,7 +1,7 @@
 <!-- JT-STREAMING: begin -->
 > ## JT-Streaming
 >
-> **JT-Streaming** is de Jellyfin-client van de familie Thoelen. Het is **gebaseerd op [Fladder](https://github.com/DonutWare/Fladder) van DonutWare** en valt, net als Fladder, onder de **GPL-3.0** (zie [`LICENSE`](LICENSE)). Alle eigen aanpassingen staan als commits bovenop upstream-tag `v0.11.1`; de broncode van deze fork is beschikbaar in deze repository.
+> **JT-Streaming** is de Jellyfin-client van de familie Thoelen. Het is **gebaseerd op [Fladder](https://github.com/DonutWare/Fladder) van DonutWare** en valt, net als Fladder, onder de **GPL-3.0** (zie [`LICENSE`](LICENSE)). Alle eigen aanpassingen staan als commits bovenop upstream-tag `v0.11.1`; de broncode van deze fork staat op <https://github.com/Xantar-86/JT-Streaming>.
 >
 > - Aanpassen van de interface: zie [`CUSTOMIZING.md`](CUSTOMIZING.md).
 > - Bouwen van de webversie: `pwsh tool/jt/build-web.ps1 -Clean` (zie `CUSTOMIZING.md`).
