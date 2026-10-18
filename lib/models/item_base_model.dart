@@ -412,7 +412,7 @@ enum FladderItemType {
         FladderItemType.musicArtist => 0.8,
         FladderItemType.audio => 0.8,
         FladderItemType.baseType => 0.8,
-        FladderItemType.tvchannel => 0.8,
+        FladderItemType.tvchannel => 1.35,
         _ => 0.55,
       };
 

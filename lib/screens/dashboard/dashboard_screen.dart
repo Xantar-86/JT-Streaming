@@ -167,7 +167,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     contentPadding: padding,
                     tvMode: useTVExpandedLayout,
                     label: context.localized.activeTvChannels,
-                    collectionAspectRatio: 0.55,
+                    collectionAspectRatio: FladderItemType.tvchannel.aspectRatio,
                     onLabelClick: () {
                       return LiveTvRoute().navigate(context);
                     },

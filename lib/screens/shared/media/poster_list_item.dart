@@ -5,6 +5,7 @@ import 'package:iconsax_plus/iconsax_plus.dart';
 
 import 'package:fladder/models/book_model.dart';
 import 'package:fladder/models/item_base_model.dart';
+import 'package:fladder/models/items/channel_model.dart';
 import 'package:fladder/models/items/item_shared_models.dart';
 import 'package:fladder/providers/settings/client_settings_provider.dart';
 import 'package:fladder/util/adaptive_layout/adaptive_layout.dart';
@@ -134,6 +135,7 @@ class PosterListItem extends ConsumerWidget {
                                 margin: EdgeInsets.zero,
                                 child: FladderImage(
                                   image: poster.getPosters?.primary ?? poster.getPosters?.backDrop?.lastOrNull,
+                                  fit: poster is ChannelModel ? BoxFit.contain : BoxFit.cover,
                                 ),
                               ),
                             ),

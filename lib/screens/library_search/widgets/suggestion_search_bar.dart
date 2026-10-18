@@ -6,6 +6,7 @@ import 'package:iconsax_plus/iconsax_plus.dart';
 import 'package:page_transition/page_transition.dart';
 
 import 'package:fladder/models/item_base_model.dart';
+import 'package:fladder/models/items/channel_model.dart';
 import 'package:fladder/providers/library_search_provider.dart';
 import 'package:fladder/screens/shared/outlined_text_field.dart';
 import 'package:fladder/theme.dart';
@@ -160,7 +161,7 @@ class _SearchBarState extends ConsumerState<SuggestionSearchBar> {
                         aspectRatio: 0.8,
                         child: FladderImage(
                           image: suggestion.images?.primary,
-                          fit: BoxFit.cover,
+                          fit: suggestion is ChannelModel ? BoxFit.contain : BoxFit.cover,
                         ),
                       ),
                     ),

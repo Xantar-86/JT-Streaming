@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:iconsax_plus/iconsax_plus.dart';
 
 import 'package:fladder/models/item_base_model.dart';
+import 'package:fladder/models/items/channel_model.dart';
 import 'package:fladder/models/items/item_shared_models.dart';
 import 'package:fladder/providers/settings/client_settings_provider.dart';
 import 'package:fladder/providers/sync/sync_provider_helpers.dart';
@@ -86,9 +87,12 @@ class PosterImage extends ConsumerWidget {
     final myKey = key ?? UniqueKey();
 
     final derivePosterColor = ref.watch(clientSettingsProvider.select((value) => value.dynamicPosterColors));
-    final backgroundColor = derivePosterColor
-        ? poster.title.toColor.harmonizeWith(Theme.of(context).colorScheme.surface)
-        : Theme.of(context).colorScheme.surface;
+    final isChannel = poster is ChannelModel;
+    final backgroundColor = isChannel
+        ? Theme.of(context).colorScheme.surfaceContainerHigh
+        : derivePosterColor
+            ? poster.title.toColor.harmonizeWith(Theme.of(context).colorScheme.surface)
+            : Theme.of(context).colorScheme.surface;
 
     return Hero(
       tag: myKey,
@@ -117,10 +121,21 @@ class PosterImage extends ConsumerWidget {
             borderRadius: radius,
             border: Border.all(width: 1, color: Colors.white.withAlpha(45)),
           ),
-          child: FladderImage(
-            image: _resolveImage(),
-            placeHolder: PosterPlaceholder(item: poster),
-          ),
+          // Channel logos are wide, show them in full instead of cropping them.
+          child: isChannel
+              ? Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: FladderImage(
+                    image: poster.images?.primary ?? _resolveImage(),
+                    placeHolder: PosterPlaceholder(item: poster),
+                    fit: BoxFit.contain,
+                    disableBlur: true,
+                  ),
+                )
+              : FladderImage(
+                  image: _resolveImage(),
+                  placeHolder: PosterPlaceholder(item: poster),
+                ),
         ),
         overlays: [
           if (showSyncStatus)
