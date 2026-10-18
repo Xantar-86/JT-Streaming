@@ -59,8 +59,52 @@ Controle na een rebase: `git grep -c "JT-HOOK"` (verwacht aantal: zie *Upstream 
 
 ## Bouwen
 
-_(wordt aangevuld in de build-commit)_
+Eén opdracht (PowerShell 7, Windows):
+
+```powershell
+pwsh tool/jt/build-web.ps1 -Clean -BuildNumber 1
+```
+
+- Vereist Flutter **3.35.7 stable** (de versie uit `.fvmrc`) in `$env:JT_FLUTTER_ROOT`
+  (standaard `C:\paperclip\tools\flutter-3.35.7\flutter`). Het script stopt bij een andere versie.
+- `flutter pub get --enforce-lockfile`: `pubspec.lock` pint alle dependencies, ook de git-forks.
+- Iconen worden telkens opnieuw gegenereerd (`tool/jt/generate-icons.ps1`, idempotent).
+- Uitvoer: `build/web/` (met `LICENSE.txt` en `jt-buildinfo.json`) en in `dist/`:
+  `jt-streaming-web/` (Docker-build-context met het ongewijzigde upstream-`Dockerfile`),
+  `jt-streaming-web-<versie>.tar` en `.tar.sha256`. Versie = `0.11.1-jt.<BuildNumber>`.
+- Exitcode ≠ 0 bij elke fout.
+- Op een Windows-machine zonder symlink-rechten (geen Developer Mode) zet het script de
+  desktop-feature-flags van Flutter tijdelijk uit; voor de webbuild zijn die niet nodig.
 
 ## Upstream binnenhalen (rebase)
 
-_(wordt aangevuld in de build-commit)_
+Onze commits staan bovenop upstream-tag `v0.11.1` op branch `jt/main`:
+
+1. `fix(playback)`, 2. `fix(live-tv)`, 3. `fix(ui)`: upstream-geschikt, geen `lib/jt/`-verwijzingen.
+4. `chore(jt)`, 5. `feat(jt): rebrand`, 6. `feat(jt): theme layer`, 7. `feat(jt): defaults`, 8. `build(jt)`.
+
+```powershell
+git fetch upstream --tags
+git switch jt/main
+git tag jt/backup-<datum>                  # vangnet
+git rebase --onto vX.Y.Z v0.11.1 jt/main   # vorige basis -> nieuwe tag
+```
+
+Per conflict:
+- **Fix-commits (1-3):** heeft upstream de fix overgenomen, laat de commit vallen (`git rebase --skip`).
+  Is de code verplaatst, pas de kleine wijziging op de nieuwe plek opnieuw toe.
+- **Hook-commits:** upstream wijzigde de regel rond een hook. Neem de upstream-versie en zet de
+  `// JT-HOOK`-regel er opnieuw in.
+- **Binaire iconen:** `git checkout --ours <bestand>`, daarna `pwsh tool/jt/generate-icons.ps1`.
+- **`pubspec.lock`:** wij wijzigen geen dependencies. Bij een conflict: `git checkout vX.Y.Z -- pubspec.lock`.
+
+Daarna:
+
+```powershell
+git grep -c "JT-HOOK" -- lib ":!lib/jt"   # verwacht: 39 regels in 19 bestanden (stand v0.11.1-jt.1)
+flutter analyze
+flutter test
+pwsh tool/jt/build-web.ps1 -Clean
+```
+
+Nieuwe Flutter-versie in `.fvmrc`? Installeer die eerst en zet `$env:JT_FLUTTER_ROOT`.
