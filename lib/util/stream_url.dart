@@ -57,9 +57,9 @@ class PlaybackUrl {
 
 /// Selects how and from which url [mediaSource] of the item [itemId] is played.
 ///
-/// [MediaSourceInfo.path] is intentionally never used: for live tv it points to the tuner (often an
-/// address only reachable by the server) and for remote (strm) items to the provider. Every url goes
-/// through the Jellyfin server, like jellyfin-web.
+/// [MediaSourceInfo.path] is intentionally never used as a playback url, which is deliberately stricter
+/// than jellyfin-web: it can be a server-internal address (for live tv often the tuner, only reachable by
+/// the server) or an external provider url (remote/strm items). Every url goes through the Jellyfin server.
 ///
 /// Live tv uses the HLS `TranscodingUrl` on players without MPEG-TS support (web) and the direct stream
 /// url on the other players. Without a usable url it falls back to the regular direct stream/transcode
