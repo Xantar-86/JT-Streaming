@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 
 import 'package:freezed_annotation/freezed_annotation.dart';
 
+import 'package:fladder/jt/jt_defaults.dart';
 import 'package:fladder/models/settings/arguments_model.dart';
 import 'package:fladder/models/settings/key_combinations.dart';
 import 'package:fladder/models/syncing/transcode_download_model.dart';
@@ -103,7 +104,7 @@ abstract class ClientSettingsModel with _$ClientSettingsModel {
   }) = _ClientSettingsModel;
 
   static ClientSettingsModel defaultModel() {
-    return ClientSettingsModel.internal(
+    final model = ClientSettingsModel.internal(
       transcodeDownloadModel: TranscodeDownloadModel.fromDefaults(),
       blurPlaceHolders: leanBackMode ? false : true,
       backgroundImage: leanBackMode ? BackgroundType.disabled : BackgroundType.blurred,
@@ -112,6 +113,7 @@ abstract class ClientSettingsModel with _$ClientSettingsModel {
       useTVExpandedLayout: false,
       dynamicPosterColors: leanBackMode ? false : true,
     );
+    return JtDefaults.clientSettings(model); // JT-HOOK: defaults
   }
 
   Future<String?> getSavePath() async {
