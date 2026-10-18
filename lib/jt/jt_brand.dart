@@ -17,6 +17,11 @@ abstract final class JtBrand {
   /// Broncode van deze fork (board-besluit B2).
   static const String forkUrl = 'https://github.com/Xantar-86/JT-Streaming';
 
+  /// Windows-identiteit voor meldingen (AppUserModelID + COM-activator-GUID), eigen waarden
+  /// zodat JT-Streaming naast een Fladder-installatie kan staan. Upstream: `nl.jknaapen.fladder`.
+  static const String windowsAppUserModelId = 'be.thoelen.jtstreaming';
+  static const String windowsNotificationGuid = 'bad96a7c-f294-4c35-bfd1-494af3b6633f';
+
   /// Tekst onder de versie in het licentiescherm.
   static const String legalese = 'JT-Streaming, gebaseerd op Fladder © DonutWare, GPL-3.0';
 

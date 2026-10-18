@@ -33,8 +33,8 @@ class NotificationService {
     final linux = const LinuxInitializationSettings(defaultActionName: 'Open notification');
     final windows = const WindowsInitializationSettings(
       appName: JtBrand.appName, // JT-HOOK: brand
-      appUserModelId: 'nl.jknaapen.fladder',
-      guid: 'd49b0314-ee7a-4626-bf79-97cdb8a991bb',
+      appUserModelId: JtBrand.windowsAppUserModelId, // JT-HOOK: brand
+      guid: JtBrand.windowsNotificationGuid, // JT-HOOK: brand
     );
 
     await _plugin.initialize(
