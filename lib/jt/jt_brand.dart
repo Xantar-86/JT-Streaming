@@ -21,7 +21,6 @@ abstract final class JtBrand {
   static const String legalese = 'JT-Streaming, gebaseerd op Fladder © DonutWare, GPL-3.0';
 
   /// Logo's (© fam. Thoelen, niet onder GPL), kopieën uit `assets/jt/`.
-  static const String logoAsset = 'assets/jt/logo.png';
   static const String iconAsset = 'assets/jt/icon.png';
 
   /// Het app-pictogram, gebruikt waar Fladder zijn eigen icoon toonde.
