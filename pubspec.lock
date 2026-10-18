@@ -1272,11 +1272,9 @@ packages:
   media_kit:
     dependency: "direct main"
     description:
-      path: media_kit
-      ref: main
-      resolved-ref: cb56b5a6149f1e51086eba473c7e48041c54ab12
-      url: "https://github.com/DonutWare/media-kit.git"
-    source: git
+      path: "third_party/media_kit"
+      relative: true
+    source: path
     version: "1.2.2"
   media_kit_libs_android_video:
     dependency: "direct overridden"

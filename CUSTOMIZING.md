@@ -10,6 +10,7 @@ Vuistregel: **een wijziging aan de interface raakt meestal één bestand: `lib/j
 | `lib/jt/` | Alle eigen code (thema, naam, startscherm, standaardinstellingen) |
 | `assets/jt/` | Logo's (© fam. Thoelen, niet onder GPL) |
 | `tool/jt/` | Bouw- en icoonscripts |
+| `third_party/media_kit/` | Gevendorde media_kit met JT-patch (web-HLS altijd via hls.js), zie `JT-PATCH.md` daar |
 
 ## Wil je X veranderen, dan pas je Y aan
 
@@ -139,6 +140,8 @@ Onze commits staan bovenop upstream-tag `v0.11.1` op branch `jt/main`:
 
 1. `fix(playback)`, 2. `fix(live-tv)`, 3. `fix(ui)`: upstream-geschikt, geen `lib/jt/`-verwijzingen.
 4. `chore(jt)`, 5. `feat(jt): rebrand`, 6. `feat(jt): theme layer`, 7. `feat(jt): defaults`, 8. `build(jt)`.
+9. Vanaf jt.3: `chore(jt): vendor media_kit ... unchanged` en `fix(web): ... hls.js` (fix 1d,
+   `third_party/media_kit/`, override in `pubspec.yaml`).
 
 ```powershell
 git fetch upstream --tags
@@ -153,12 +156,17 @@ Per conflict:
 - **Hook-commits:** upstream wijzigde de regel rond een hook. Neem de upstream-versie en zet de
   `// JT-HOOK`-regel er opnieuw in.
 - **Binaire iconen:** `git checkout --ours <bestand>`, daarna `pwsh tool/jt/generate-icons.ps1`.
-- **`pubspec.lock`:** wij wijzigen geen dependencies. Bij een conflict: `git checkout vX.Y.Z -- pubspec.lock`.
+- **`pubspec.lock`:** wij wijzigen één dependency: `media_kit` is een path-dependency naar
+  `third_party/media_kit` (fix 1d). Bij een conflict: `git checkout vX.Y.Z -- pubspec.lock`, daarna
+  `flutter pub get` zodat de `media_kit`-regel weer `source: path` wordt.
+- **`media_kit` (fix 1d):** pint upstream een andere media-kit-ref (zie `media_kit_video` in
+  `pubspec.lock`), volg dan *Bij een upstream-update van media_kit* in `third_party/media_kit/JT-PATCH.md`.
 
 Daarna:
 
 ```powershell
 git grep -c "JT-HOOK" -- lib ":!lib/jt"   # verwacht: 41 regels in 19 bestanden (stand WP2.1, Windows-build)
+git grep -c "JT-PATCH" -- third_party ":!*.md"   # verwacht: 9 regels in 2 bestanden (stand jt.3)
 flutter analyze
 flutter test
 pwsh tool/jt/build-web.ps1 -Clean

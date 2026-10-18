@@ -329,6 +329,7 @@ class WebPlayer extends PlatformPlayer {
 
       disposed = true;
 
+      _destroyHls(); // JT-PATCH (fix 1d)
       element
         ..src = ''
         ..load()
@@ -455,6 +456,7 @@ class WebPlayer extends PlatformPlayer {
         trackController.add(Track());
       }
 
+      _destroyHls(); // JT-PATCH (fix 1d)
       element
         ..src = ''
         ..load();
@@ -1475,6 +1477,8 @@ class WebPlayer extends PlatformPlayer {
 
   void _loadSource(Media media) {
     try {
+      // JT-PATCH (fix 1d): never leave a previous hls.js instance loading in the background.
+      _destroyHls();
       if (_isHLS(media.uri)) {
         void setHlsHTTPHeaders(web.XMLHttpRequest xhr, String url) {
           for (final header in media.httpHeaders!.entries) {
@@ -1489,6 +1493,22 @@ class WebPlayer extends PlatformPlayer {
                 : null,
           ),
         );
+
+        // JT-PATCH (fix 1d): log hls.js errors with the [jt-hls] prefix.
+        hls.on(
+          kHlsEventError,
+          ((JSString event, JSObject data) {
+            final fatal =
+                data.getProperty<JSBoolean?>('fatal'.toJS)?.toDart ?? false;
+            // console.error(label, data): package:web here only takes 1 argument.
+            (globalContext['console'] as JSObject).callMethod(
+              (fatal ? 'error' : 'debug').toJS,
+              '[jt-hls] ${fatal ? 'fatal' : 'non-fatal'}'.toJS,
+              data,
+            );
+          }).toJS,
+        );
+        _hls = hls;
 
         hls.loadSource(media.uri);
         hls.attachMedia(element);
@@ -1515,19 +1535,31 @@ class WebPlayer extends PlatformPlayer {
     }
   }
 
+  // JT-PATCH (fix 1d): an HLS source always goes through hls.js when hls.js is
+  // usable (MSE present), regardless of canPlayType. Chrome reports native HLS
+  // as "maybe" but fails on Jellyfin streams. Native HLS only without hls.js/MSE
+  // (e.g. Safari on older iOS).
   bool _isHLS(String src) {
-    final userAgent = web.window.navigator.userAgent;
-    final isAndroidChrome =
-        userAgent.contains("Android") && userAgent.contains("Chrome");
-
-    if (!isAndroidChrome &&
-        element.canPlayType('application/vnd.apple.mpegurl') != '') {
+    if (!src.toLowerCase().contains('m3u8')) {
       return false;
     }
-    if (isHLSSupported() && src.toLowerCase().contains('m3u8')) {
-      return true;
+    try {
+      return isHLSSupported();
+    } catch (_) {
+      // hls.js not loaded: fall back to the native route.
+      return false;
     }
-    return false;
+  }
+
+  // JT-PATCH (fix 1d)
+  void _destroyHls() {
+    final hls = _hls;
+    _hls = null;
+    if (hls != null) {
+      try {
+        hls.destroy();
+      } catch (_) {}
+    }
   }
 
   Future<void> _transition() async {
@@ -1618,6 +1650,9 @@ class WebPlayer extends PlatformPlayer {
 
   /// Current playlist mode.
   PlaylistMode _playlistMode = PlaylistMode.none;
+
+  /// JT-PATCH (fix 1d): hls.js instance attached to [element], if any.
+  Hls? _hls;
 
   // --------------------------------------------------
 

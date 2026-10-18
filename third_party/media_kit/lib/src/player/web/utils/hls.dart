@@ -106,6 +106,12 @@ class Hls {
 extension ExtensionHls on Hls {
   external void loadSource(String src);
   external void attachMedia(web.HTMLVideoElement video);
+  // JT-PATCH (fix 1d): error listener and cleanup, see third_party/media_kit/JT-PATCH.md.
+  external void on(String event, JSFunction callback);
+  external void destroy();
 }
+
+/// JT-PATCH (fix 1d): `Hls.Events.ERROR` in hls.js 1.x.
+const String kHlsEventError = 'hlsError';
 
 // --------------------------------------------------

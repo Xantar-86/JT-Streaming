@@ -152,11 +152,10 @@ dependency_overrides:
     git:
       url: https://github.com/DonutWare/pip.git
       ref: 0.0.3.1
+  # JT-PATCH (fix 1d): gevendorde media_kit (DonutWare/media-kit@cb56b5a6) met web-HLS via hls.js,
+  # zie third_party/media_kit/JT-PATCH.md.
   media_kit:
-    git:
-      url: https://github.com/DonutWare/media-kit.git
-      ref: main
-      path: ./media_kit
+    path: third_party/media_kit
   media_kit_video:
     git:
       url: https://github.com/DonutWare/media-kit.git
