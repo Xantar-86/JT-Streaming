@@ -4,6 +4,7 @@ import 'package:collection/collection.dart';
 import 'package:dynamic_color/dynamic_color.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:fladder/jt/dvr/jt_recording_badge.dart';
 import 'package:fladder/models/items/channel_model.dart';
 import 'package:fladder/models/items/channel_program.dart';
 import 'package:fladder/providers/live_tv_provider.dart';
@@ -151,7 +152,7 @@ class ChannelRowState extends ConsumerState<ChannelRow> {
                           widget.scrollToPosition(clampedStart - (GuideConstants.widthPerMinute * 10));
                         }
                       },
-                      child: Container(
+                      child: JtRecordingBadge(programId: program.id, child: Container( // JT-HOOK: dvr-badge
                         margin: const EdgeInsetsDirectional.only(end: GuideConstants.padding),
                         decoration: BoxDecoration(
                           color: colorFromString(
@@ -222,7 +223,7 @@ class ChannelRowState extends ConsumerState<ChannelRow> {
                                 ],
                               )
                             : null,
-                      ),
+                      )), // JT-HOOK: dvr-badge
                     );
                   },
                 ),

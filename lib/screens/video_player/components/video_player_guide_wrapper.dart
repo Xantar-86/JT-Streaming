@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:fladder/jt/dvr/jt_record_buttons.dart';
 import 'package:fladder/models/items/channel_model.dart';
 import 'package:fladder/models/items/channel_program.dart';
 import 'package:fladder/models/playback/playback_model.dart';
@@ -194,6 +195,7 @@ class _GuideOverviewState extends ConsumerState<_GuideOverview> {
                           },
                           child: Text(context.localized.close),
                         ),
+                        if (_selectedProgram != null) JtRecordButtons(program: _selectedProgram!), // JT-HOOK: dvr-buttons
                         FilledButton(
                           onPressed: () {
                             ref.read(playbackModelHelper).loadTVChannel(_selectedProgram?.channel);

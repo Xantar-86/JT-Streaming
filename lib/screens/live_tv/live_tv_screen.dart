@@ -3,9 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:fladder/jt/dvr/jt_program_dialog.dart';
+import 'package:fladder/jt/dvr/jt_scheduled_recordings_page.dart';
 import 'package:fladder/providers/live_tv_provider.dart';
 import 'package:fladder/screens/live_tv/live_tv_guide.dart';
-import 'package:fladder/screens/shared/default_alert_dialog.dart';
 import 'package:fladder/util/adaptive_layout/adaptive_layout.dart';
 import 'package:fladder/util/item_base_model/play_item_helpers.dart';
 import 'package:fladder/util/localization_helper.dart';
@@ -70,26 +71,17 @@ class _LiveTvScreenState extends ConsumerState<LiveTvScreen> {
                           },
                           child: Text(context.localized.refresh),
                         ),
+                        const JtScheduledRecordingsButton(), // JT-HOOK: dvr-scheduled
                       ],
                     ),
                     Expanded(
                       child: LiveTvGuide(
                         horizontalScrollController: _horizontalScrollController,
                         onProgramSelected: (program, channel) async {
-                          await showDefaultAlertDialog(
-                            context,
-                            context.localized.switchChannel,
-                            context.localized.switchChannelDesc(program.name, channel.name),
-                            (currentContext) async {
-                              Navigator.of(currentContext).pop();
-                              program.channel.play(context, ref);
-                            },
-                            context.localized.watch,
-                            (currentContext) async {
-                              Navigator.of(currentContext).pop();
-                            },
-                            context.localized.decline,
-                          );
+                          await showJtProgramDialog(context, // JT-HOOK: dvr-dialog
+                              program: program,
+                              channel: channel,
+                              onWatch: () => program.channel.play(context, ref));
                         },
                       ),
                     ),

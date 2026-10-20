@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:iconsax_plus/iconsax_plus.dart';
 import 'package:intl/intl.dart';
 
+import 'package:fladder/jt/dvr/jt_record_buttons.dart';
 import 'package:fladder/models/items/channel_program.dart';
 import 'package:fladder/screens/details_screens/components/overview_header.dart';
 import 'package:fladder/theme.dart';
@@ -189,6 +190,7 @@ class _ChannelProgramItemState extends State<ChannelProgramItem> with SingleTick
                                     SimpleLabel(
                                       label: Text(program.officialRating),
                                     ),
+                                    JtRecordButtons(program: program, dense: true), // JT-HOOK: dvr-buttons
                                   ],
                                 ),
                               ),
