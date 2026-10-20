@@ -2864,5 +2864,60 @@
   },
   "leanBackModeTitle": "Lean-back Mode",
   "leanBackModeDesc": "Enable lean-back mode on Android devices, even if the device reports back as false.",
-  "leanBackModeInfo": "Lean-back mode is re-enabled by default on AndroidTV devices. Toggling this option on non-AndroidTV devices may cause unexpected behavior."
+  "leanBackModeInfo": "Lean-back mode is re-enabled by default on AndroidTV devices. Toggling this option on non-AndroidTV devices may cause unexpected behavior.",
+  "jtDvrRecord": "Record",
+  "jtDvrRecordSeries": "Record series",
+  "jtDvrCancelRecording": "Cancel recording",
+  "jtDvrCancelSeries": "Cancel series",
+  "jtDvrStopRecording": "Stop recording",
+  "jtDvrScheduled": "Scheduled recordings",
+  "jtDvrSeriesHeader": "Series",
+  "jtDvrUpcoming": "Upcoming recordings",
+  "jtDvrNone": "No scheduled recordings",
+  "jtDvrInProgress": "Recording",
+  "jtDvrStatusScheduled": "Scheduled",
+  "jtDvrPadding": "Starts {pre} min early, stops {post} min late",
+  "@jtDvrPadding": {
+    "placeholders": {
+      "post": {"type": "int"},
+      "pre": {"type": "int"}
+    }
+  },
+  "jtDvrNewOnly": "Only new episodes: {value}",
+  "@jtDvrNewOnly": {
+    "placeholders": {
+      "value": {"type": "String"}
+    }
+  },
+  "jtDvrAnyChannel": "On any channel: {value}",
+  "@jtDvrAnyChannel": {
+    "placeholders": {
+      "value": {"type": "String"}
+    }
+  },
+  "jtDvrAnyChannelShort": "any channel",
+  "jtDvrYes": "yes",
+  "jtDvrNo": "no",
+  "jtDvrCancelConfirm": "Cancel the recording of \"{name}\"?",
+  "@jtDvrCancelConfirm": {
+    "placeholders": {
+      "name": {"type": "String"}
+    }
+  },
+  "jtDvrStopConfirm": "Stop the running recording of \"{name}\"? The part already recorded is kept.",
+  "@jtDvrStopConfirm": {
+    "placeholders": {
+      "name": {"type": "String"}
+    }
+  },
+  "jtDvrCancelSeriesConfirm": "Cancel the series recording \"{name}\"? Its planned episodes are cancelled too.",
+  "@jtDvrCancelSeriesConfirm": {
+    "placeholders": {
+      "name": {"type": "String"}
+    }
+  },
+  "jtDvrRecordSuccess": "Recording scheduled",
+  "jtDvrSeriesSuccess": "Series recording scheduled",
+  "jtDvrCancelSuccess": "Recording cancelled",
+  "jtDvrError": "Could not change the recording"
 }
