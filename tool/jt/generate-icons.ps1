@@ -10,6 +10,8 @@
     - web/favicon.png                          (32x32)
     - web/favicon.ico, windows/runner/resources/app_icon.ico (lagen 16/32/48/64/256)
     - assets/jt/login_background.jpg           (1600 px breed, achtergrond aanmeldpagina)
+    - android/app/src/production/res/          (launcher-icoon, adaptive + monochroom icoon,
+                                                TV-banner uit het brede logo, achtergrondkleur)
     Alle formaten = Favicon_JT-Streaming.png in één stap verkleind (HighQualityBicubic),
     zonder bijsnijden, marge of monogram.
   Idempotent: bestanden worden alleen herschreven als de inhoud verandert.
@@ -178,5 +180,82 @@ try {
 } finally { $src.Dispose() }
 if (Write-IfChanged "$bgTarget.tmp" $bgTarget) { Write-Host 'assets/jt/login_background.jpg bijgewerkt.' }
 Write-Host "assets/jt/login_background.jpg: $((Get-Item $bgTarget).Length) bytes"
+
+# 5. Android (production-flavor): launcher-icoon, adaptive icon, monochroom icoon en TV-banner.
+#    Alleen android/app/src/production/res/; main/ en development/ blijven upstream.
+#    Achtergrond = zwart, de randkleur van beide logo's (gemeten RGB 1-5), geen eigen ontwerp.
+$androidBackground = [System.Drawing.Color]::FromArgb(255, 0, 0, 0)
+$androidRes = Join-Path $repo 'android\app\src\production\res'
+
+# Favicon op een canvas van $canvas px, logo $logo px groot en gecentreerd. -Mono: wit silhouet,
+# dekking = helderheid van het logo (de goudkleurige lijnen), voor het monochrome (themed) icoon.
+function New-AndroidIcon([int]$canvas, [int]$logo, [switch]$Mono) {
+  $bmp = [System.Drawing.Bitmap]::new($canvas, $canvas, [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+  $g = [System.Drawing.Graphics]::FromImage($bmp)
+  $src = [System.Drawing.Image]::FromFile((Join-Path $srcDir 'Favicon_JT-Streaming.png'))
+  try {
+    Set-Quality $g
+    $g.Clear([System.Drawing.Color]::Transparent)
+    $offset = [int](($canvas - $logo) / 2)
+    $g.DrawImage($src, $offset, $offset, $logo, $logo)
+  } finally { $g.Dispose(); $src.Dispose() }
+  if ($Mono) {
+    $rect = [System.Drawing.Rectangle]::new(0, 0, $canvas, $canvas)
+    $data = $bmp.LockBits($rect, [System.Drawing.Imaging.ImageLockMode]::ReadWrite, [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+    try {
+      $px = [byte[]]::new($data.Stride * $canvas)
+      [Runtime.InteropServices.Marshal]::Copy($data.Scan0, $px, 0, $px.Length)
+      for ($i = 0; $i -lt $px.Length; $i += 4) {
+        # BGRA; luminantie 0,35-0,75 -> dekking 0-1
+        $lum = (0.0722 * $px[$i] + 0.7152 * $px[$i + 1] + 0.2126 * $px[$i + 2]) / 255
+        $cov = [Math]::Min(1, [Math]::Max(0, ($lum - 0.35) / 0.4))
+        $px[$i + 3] = [byte][Math]::Round($px[$i + 3] * $cov)
+        $px[$i] = 255; $px[$i + 1] = 255; $px[$i + 2] = 255
+      }
+      [Runtime.InteropServices.Marshal]::Copy($px, 0, $data.Scan0, $px.Length)
+    } finally { $bmp.UnlockBits($data) }
+  }
+  return $bmp
+}
+
+# Breed logo "contain" op de achtergrond (TV-banner, 16:9).
+function New-AndroidBanner([int]$width, [int]$height) {
+  $bmp = [System.Drawing.Bitmap]::new($width, $height, [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+  $g = [System.Drawing.Graphics]::FromImage($bmp)
+  $src = [System.Drawing.Image]::FromFile((Join-Path $srcDir 'Logo_JT-Streaming.png'))
+  try {
+    Set-Quality $g
+    $g.Clear($androidBackground)
+    $scale = [Math]::Min($width / $src.Width, $height / $src.Height)
+    $w = [int][Math]::Round($src.Width * $scale); $h = [int][Math]::Round($src.Height * $scale)
+    $g.DrawImage($src, [int](($width - $w) / 2), [int](($height - $h) / 2), $w, $h)
+  } finally { $g.Dispose(); $src.Dispose() }
+  return $bmp
+}
+
+$androidChanged = 0
+# mdpi = 1x. Legacy-icoon 48 dp (volledig favicon); adaptive 108 dp met het favicon op 72 dp
+# (het zichtbare deel na het masker), zodat de gouden ring ook in een rond masker heel blijft.
+foreach ($d in @(@('mdpi', 1.0), @('hdpi', 1.5), @('xhdpi', 2.0), @('xxhdpi', 3.0), @('xxxhdpi', 4.0))) {
+  $dir = Join-Path $androidRes "mipmap-$($d[0])"
+  $legacy = [int](48 * $d[1]); $canvas = [int](108 * $d[1]); $logo = [int](72 * $d[1])
+  if (Save-Png (New-AndroidIcon $legacy $legacy) (Join-Path $dir 'ic_launcher.png')) { $androidChanged++ }
+  if (Save-Png (New-AndroidIcon $canvas $logo) (Join-Path $dir 'ic_launcher_foreground.png')) { $androidChanged++ }
+  if (Save-Png (New-AndroidIcon $canvas $logo -Mono) (Join-Path $dir 'ic_launcher_monochrome.png')) { $androidChanged++ }
+}
+# TV-banner: 320x180 = xhdpi (160x90 dp), plus hogere dichtheden. drawable-nodpi overschrijft de
+# upstream-banner van main/ voor deze flavor, zodat die nooit gekozen kan worden.
+foreach ($b in @(@('drawable-nodpi', 320, 180), @('drawable-xhdpi', 320, 180), @('drawable-xxhdpi', 480, 270), @('drawable-xxxhdpi', 640, 360))) {
+  $dir = Join-Path $androidRes $b[0]
+  New-Item -ItemType Directory -Force $dir | Out-Null
+  if (Save-Png (New-AndroidBanner $b[1] $b[2]) (Join-Path $dir 'app_banner.png')) { $androidChanged++ }
+}
+# Achtergrondkleur van het adaptive icon.
+$hex = '#FF{0:X2}{1:X2}{2:X2}' -f $androidBackground.R, $androidBackground.G, $androidBackground.B
+$colors = Join-Path $androidRes 'values\colors.xml'
+$colorsXml = "<?xml version=`"1.0`" encoding=`"utf-8`"?>`n<resources>`n  <!-- JT-Streaming: gegenereerd door tool/jt/generate-icons.ps1 -->`n  <color name=`"ic_launcher_background`">$hex</color>`n</resources>`n"
+[IO.File]::WriteAllText("$colors.tmp", $colorsXml, [Text.UTF8Encoding]::new($false))
+if (Write-IfChanged "$colors.tmp" $colors) { $androidChanged++ }
+Write-Host "Android (production): $androidChanged bestand(en) bijgewerkt."
 
 Write-Host 'Iconen gegenereerd.'

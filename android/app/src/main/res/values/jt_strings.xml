@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- JT-Streaming: naam onder het icoon (launcher, Android TV, app-info). Zie CUSTOMIZING.md. -->
+<resources>
+    <string name="jt_app_name" translatable="false">JT-Streaming</string>
+</resources>

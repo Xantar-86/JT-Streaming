@@ -109,6 +109,8 @@ android {
         production {
             dimension "default"
             applicationIdSuffix ""
+            // JT-HOOK: android-id (eigen package, naast Fladder installeerbaar)
+            applicationId = "be.thoelen.jtstreaming"
         }
     }
 }
