@@ -196,10 +196,13 @@ pwsh tool/jt/build-android.ps1 -Clean -JtVersion 5.1 -OutDir C:\paperclip\forge\
   (eerst verwijderen = lokale app-instellingen kwijt).
 - Vereist op de bouwmachine (alles per gebruiker, geen admin): **JDK 17** (`$env:JAVA_HOME`, standaard
   `C:\paperclip\tools\jdk-17.0.20.1+1`, Temurin-zip) en de **Android SDK** (`$env:ANDROID_HOME`, standaard
-  `C:\paperclip\tools\android-sdk`) met `platform-tools`, `build-tools/36.0.0`, `platforms/android-37.0`
-  (compileSdk 37), `platforms/android-36` en `ndk/27.0.12077973` (de NDK-versie van Flutter 3.35.7).
-  Installeren: `sdkmanager --install "build-tools/36.0.0" "platforms/android-37.0" ...`
-  (**met `/`**: de puntkomma-vorm valt in `sdkmanager.bat` uiteen).
+  `C:\paperclip\tools\android-sdk`) met `platform-tools`, `build-tools;36.0.0` (+ `35.0.0`, die AGP zelf
+  vraagt), `platforms;android-37.0` (compileSdk 37), `platforms;android-36` en `ndk;27.0.12077973` (de
+  NDK-versie van Flutter 3.35.7).
+  **Installeer ze met cmdline-tools 19.0** (`<sdk>\cmdline-tools\19.0\bin\sdkmanager.bat --install ...`),
+  niet met de nieuwste (23.0): die schrijft `package.xml` in SDK-XML-versie 4, die AGP 8.12 negeert
+  ("only understands SDK XML versions up to 3"), met als gevolg
+  `Failed to find target with hash string 'android-37'`.
   Daarna `flutter config --android-sdk <sdk> --jdk-dir <jdk>`.
 
 ### Wijzigingen aan upstream-bestanden voor Android (rebase-impact)
