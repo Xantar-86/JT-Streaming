@@ -167,7 +167,65 @@ pwsh tool/jt/build-windows.ps1 -Clean -BuildNumber 2
 
 Bij een conflict in deze bestanden: neem de upstream-versie en zet onze regel(s) er opnieuw in.
 Niet gewijzigd: de mpv-venstertitel `nl.jknaapen.fladder` in `lib/wrappers/players/lib_mpv.dart`
-(intern, niet zichtbaar) en de Android/Flatpak-id's (buiten scope v1).
+(intern, niet zichtbaar) en de Flatpak-id's.
+
+### Android TV-app (apk)
+
+```powershell
+pwsh tool/jt/build-android.ps1 -Clean -JtVersion 5.1 -OutDir C:\paperclip\forge\projects\jt-streaming\dist-android
+```
+
+- Zelfde Flutter-, lockfile- en icoonregels als de webbuild. Versie = `0.11.1-jt.<JtVersion>`,
+  **versionCode = 1000 × jt-nummer + subnummer** (`jt.5.1` = 5001, `jt.6` = 6000; of `-VersionCode N`).
+  Android installeert een update alleen over de bestaande app als de versionCode hoger is én dezelfde
+  sleutel signeert.
+- Uitvoer: `build/app/outputs/flutter-apk/app-production-release.apk`, gekopieerd naar
+  `<OutDir>/JT-Streaming-AndroidTV-<versie>.apk` + `.sha256` (standaard `dist/`). Exitcode ≠ 0 bij elke fout.
+- **Universele apk** (geen `--split-per-abi`): `armeabi-v7a` (Xiaomi Mi Box S, 32-bit userland),
+  `arm64-v8a` (Google TV Streamer 4K) en `x86_64`. Het script faalt als `armeabi-v7a` of `arm64-v8a` ontbreekt.
+- **Signering**: release-keystore (RSA 4096, alias `jtstreaming`) als JSON
+  `{storeBase64, storePassword, keyAlias, keyPassword}` uit `$env:JT_STREAMING_ANDROID_KEYSTORE`
+  (company-secret `jt_streaming_android_keystore`), anders uit het bestand in
+  `$env:JT_STREAMING_ANDROID_KEYSTORE_FILE` (standaard
+  `C:\paperclip\forge\secrets\jt-streaming\jt_streaming_android_keystore.json`, buiten de repo, ACL alleen
+  de bouwgebruiker). Het script schrijft `android/app/key.properties` + `keystore.jks` (gitignored, het
+  controleert dat) en wist ze na de bouw, ook bij een fout. Daarna controleert het met `apksigner` dat het
+  certificaat exact dat van de keystore is (nooit de debug-sleutel) en met `aapt2 dump badging` package,
+  label, versie, leanback-launcher, banner, icoon, ABI's en "niet debuggable".
+  **Verlies de keystore niet**: zonder dezelfde sleutel kan een update niet over de bestaande app heen
+  (eerst verwijderen = lokale app-instellingen kwijt).
+- Vereist op de bouwmachine (alles per gebruiker, geen admin): **JDK 17** (`$env:JAVA_HOME`, standaard
+  `C:\paperclip\tools\jdk-17.0.20.1+1`, Temurin-zip) en de **Android SDK** (`$env:ANDROID_HOME`, standaard
+  `C:\paperclip\tools\android-sdk`) met `platform-tools`, `build-tools/36.0.0`, `platforms/android-37.0`
+  (compileSdk 37), `platforms/android-36` en `ndk/27.0.12077973` (de NDK-versie van Flutter 3.35.7).
+  Installeren: `sdkmanager --install "build-tools/36.0.0" "platforms/android-37.0" ...`
+  (**met `/`**: de puntkomma-vorm valt in `sdkmanager.bat` uiteen).
+  Daarna `flutter config --android-sdk <sdk> --jdk-dir <jdk>`.
+
+### Wijzigingen aan upstream-bestanden voor Android (rebase-impact)
+
+Alleen de **production**-flavor wordt gebrand; `development` (`nl.jknaapen.fladder.dev`) blijft upstream.
+
+| Bestand | Wijziging |
+|---|---|
+| `android/app/build.gradle` | production-flavor: `applicationId = "be.thoelen.jtstreaming"` (`// JT-HOOK: android-id`) |
+| `android/app/src/main/AndroidManifest.xml` | `android:label="@string/jt_app_name"` (was `Fladder`) |
+| `android/app/src/main/res/values/jt_strings.xml` | nieuw: `jt_app_name` = `JT-Streaming` |
+| `android/app/src/production/res/mipmap-*/ic_launcher*.png` | JT-icoon: legacy 48 dp, adaptive voorgrond 108 dp (favicon op 72 dp), monochroom (helderheid → dekking) |
+| `android/app/src/production/res/drawable-{nodpi,xhdpi,xxhdpi,xxxhdpi}/app_banner.png` | nieuw: TV-banner 320x180 / 480x270 / 640x360 uit `Logo_JT-Streaming.png` (contain, zwarte achtergrond) |
+| `android/app/src/production/res/values/colors.xml` | `ic_launcher_background` = `#FF000000` |
+
+Alle beelden en `colors.xml` maakt `tool/jt/generate-icons.ps1` (stap 5); bij een conflict:
+`git checkout --ours <bestand>` en het script opnieuw draaien.
+Bewust **niet** gewijzigd (rebase-vriendelijk, geen runtime-effect): `namespace` en het Kotlin-package
+`nl.jknaapen.fladder` (MainActivity e.a.), de Pigeon-kanaalnamen `nl_jknaapen_fladder.*`, de
+notificatiekanaal-id `nl.jknaapen.fladder.channel.playback` en de WorkManager-taaknamen
+`nl.jknaapen.fladder.update_notifications_check*` (allemaal per app, botsen niet met Fladder), de
+statusbalk-iconen `ic_notification` (upstream-silhouet) en `ic_launcher-playstore.png` (zit niet in de apk).
+`${applicationId}`-afhankelijk en dus vanzelf correct: de FileProvider-authority
+`be.thoelen.jtstreaming.wallpaper_provider` en `packageName` in `MainActivity`/`WallpaperApiUtility`.
+De deep-link-scheme `fladder://` blijft (gedeeld met een eventuele Fladder-installatie: Android vraagt dan
+welke app).
 
 ## Upstream binnenhalen (rebase)
 
