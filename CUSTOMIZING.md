@@ -78,15 +78,23 @@ Alles komt uit `pwsh tool/jt/generate-icons.ps1` (ook aangeroepen door `build-we
 
 | Bestand | Inhoud |
 |---|---|
-| `web/favicon.png` (32x32) | JT-monogram |
-| `web/favicon.ico`, `windows/runner/resources/app_icon.ico` | 16/32 px monogram, 48/64/256 px volledig logo (PNG-lagen) |
-| `web/icons/Icon-192/512` (+ maskable), apple-touch-icon | volledig logo (icons_launcher) |
-| `assets/jt/source/Favicon_JT-Streaming-monogram.png` (512x512) | het monogram zelf, ter controle |
+| `web/favicon.png` (32x32) | `Favicon_JT-Streaming.png` verkleind (HighQualityBicubic), geen monogram |
+| `web/favicon.ico`, `windows/runner/resources/app_icon.ico` | idem, PNG-lagen 16/32/48/64/256 px |
+| `web/icons/Icon-192/512` (+ maskable), apple-touch-icon | idem; overschrijft de uitvoer van icons_launcher, maskable zonder extra veilige zone |
 
-Het monogram is **getekend**, niet uitgesneden: de foto-textuur in de letters van het logo is op 32 px
-onleesbaar. Andere vorm of kleuren? Pas de punten/kleuren in stap 3 van `generate-icons.ps1` aan en draai
-het script. Nieuw icoon? Verhoog ook de cache-buster `?v=jt4` in `web/index.html`, anders tonen
-browsers nog het oude icoon.
+Alle formaten komen in één stap uit hetzelfde bronbestand (`New-FullLogo` in `generate-icons.ps1`),
+zonder bijsnijden, marge of eigen ontwerp. Ander icoon: vervang het bronbestand + de hash in het script
+en draai het; verhoog daarna de cache-buster `?v=jtN` in `web/index.html` (nu `?v=jt5`, ook op de
+apple-touch-link), anders tonen browsers nog het oude icoon.
+
+### Opnemen (DVR) vanuit de tv-gids
+
+Code in `lib/jt/dvr/` (ontwerp: `docs/ontwerp-dvr.md` in de projectmap). Alleen zichtbaar voor gebruikers
+met het Jellyfin-recht *Live TV-opnames beheren* (`Policy.EnableLiveTvManagement`); de server dwingt
+hetzelfde af. Marges (vooraf/achteraf) komen uit de Live TV-instellingen van de server en worden alleen
+getoond. Teksten: sleutels `jtDvr…` achteraan in `lib/l10n/app_en.arb` en `app_nl.arb`. Hooks
+(`// JT-HOOK: dvr-…`): `live_tv_screen.dart` (dialoog + knop "Geplande opnames"), `channel_row.dart`
+(rood bolletje), `video_player_guide_wrapper.dart` en `channel_program_item.dart` (knoppen).
 
 ### Hooks in upstream-bestanden
 
@@ -124,6 +132,11 @@ pwsh tool/jt/build-windows.ps1 -Clean -BuildNumber 2
 - Zelfde Flutter-, lockfile- en icoonregels als de webbuild; versie = `0.11.1-jt.<BuildNumber>`.
 - Uitvoer: `build/windows/x64/runner/Release/JT-Streaming.exe` en in `dist/`:
   `JT-Streaming-Windows-<versie>-Setup.exe` + `.sha256`. Exitcode ≠ 0 bij elke fout.
+- **Bouw in een kort pad** (bv. `C:\src\jt-streaming`), niet in een diepe map of onder `%TEMP%`.
+  Vergeet je dat, dan stopt MSBuild met `MSB3491 … exceeds the OS max path limit` (MAX_PATH, 260
+  tekens) in `media_kit_libs_windows_video`; gezien bij een repo-pad van ~95 tekens. Daarna kan ook
+  `git worktree remove` falen met "Filename too long". Alternatief als het pad lang moet blijven:
+  `LongPathsEnabled=1` (register, admin) + `git config core.longpaths true`.
 - Vereist op de bouwmachine:
   - **Developer Mode** (of admin): Flutter koppelt de Windows-plugins met symlinks. Het script stopt zonder.
   - **Visual Studio (Build Tools) 2022** met de werklast *Desktop development with C++*
@@ -200,7 +213,7 @@ Per conflict:
 Daarna:
 
 ```powershell
-git grep -c "JT-HOOK" -- lib ":!lib/jt"   # verwacht: 42 regels in 20 bestanden (stand jt.4, achtergrond aanmeldpagina)
+git grep -c "JT-HOOK" -- lib ":!lib/jt"   # verwacht: 48 regels in 24 bestanden (stand jt.5, opnemen/DVR)
 git grep -c "JT-PATCH" -- third_party ":!*.md"   # verwacht: 9 regels in 2 bestanden (stand jt.3)
 flutter analyze
 flutter test
