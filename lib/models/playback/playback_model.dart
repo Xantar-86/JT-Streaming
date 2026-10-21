@@ -1,5 +1,6 @@
 import 'dart:developer';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart' hide ConnectionState;
 
 import 'package:background_downloader/background_downloader.dart';
@@ -404,7 +405,8 @@ class PlaybackModelHelper {
           subtitleStreamIndex: subStreamIndex,
           enableTranscoding: true,
           autoOpenLiveStream: true,
-          deviceProfile: type != PlaybackType.tv ? ref.read(videoProfileProvider) : null,
+          // Players without MPEG-TS support (web) need the profile to get a HLS TranscodingUrl for live tv.
+          deviceProfile: (type != PlaybackType.tv || kIsWeb) ? ref.read(videoProfileProvider) : null,
           userId: userId,
           enableDirectPlay: type != PlaybackType.transcode,
           enableDirectStream: type != PlaybackType.transcode,
@@ -438,9 +440,17 @@ class PlaybackModelHelper {
       final trickPlay = trickPlayResp?.body;
       final chapters = item.overview.chapters ?? [];
 
-      final mediaPath = isValidVideoUrl(mediaSource.path ?? "");
+      // MediaSource.Path is never played directly, it can point to the tuner or a remote provider.
+      final playbackUrl = selectPlaybackUrl(
+        ref.read(serverUrlProvider),
+        itemId: item.id,
+        mediaSource: mediaSource,
+        token: ref.read(userProvider)?.credentials.token,
+        isLiveTv: type == PlaybackType.tv,
+        playerSupportsMpegTs: !kIsWeb,
+      );
 
-      if (type == PlaybackType.tv && mediaPath != null) {
+      if (playbackUrl?.type == PlaybackUrlType.liveTv) {
         final tvModel = TvPlaybackModel(
           channel: item as ChannelModel,
           isNativePlayerBackend: isNativePlayer,
@@ -449,20 +459,12 @@ class PlaybackModelHelper {
           playbackQueue: oldModel?.playbackQueue,
           queueSource: queueSource,
           playbackInfo: playbackInfo,
-          media: Media(url: mediaPath),
+          media: Media(url: playbackUrl!.url),
         );
         return tvModel;
       }
 
-      if ((mediaSource.supportsDirectStream ?? false) || (mediaSource.supportsDirectPlay ?? false)) {
-        final playbackUrl = directStreamUri(
-              ref.read(serverUrlProvider),
-              itemId: item.id,
-              mediaSource: mediaSource,
-              token: ref.read(userProvider)?.credentials.token,
-            )?.toString() ??
-            '';
-
+      if (playbackUrl?.type == PlaybackUrlType.directStream) {
         return DirectPlaybackModel(
           item: item,
           queue: libraryQueue,
@@ -472,11 +474,11 @@ class PlaybackModelHelper {
           chapters: chapters,
           playbackInfo: playbackInfo,
           trickPlay: trickPlay,
-          media: Media(url: mediaPath ?? playbackUrl),
+          media: Media(url: playbackUrl!.url),
           mediaStreams: mediaStreamsWithUrls,
           bitRateOptions: qualityOptions,
         );
-      } else if ((mediaSource.supportsTranscoding ?? false) && mediaSource.transcodingUrl != null) {
+      } else if (playbackUrl?.type == PlaybackUrlType.transcode) {
         return TranscodePlaybackModel(
           item: item,
           queue: libraryQueue,
@@ -486,7 +488,7 @@ class PlaybackModelHelper {
           chapters: chapters,
           trickPlay: trickPlay,
           playbackInfo: playbackInfo,
-          media: Media(url: buildServerUrl(ref, relativeUrl: mediaSource.transcodingUrl)),
+          media: Media(url: playbackUrl!.url),
           mediaStreams: mediaStreamsWithUrls,
           bitRateOptions: qualityOptions,
         );
@@ -496,11 +498,6 @@ class PlaybackModelHelper {
       log(e.toString());
       return null;
     }
-  }
-
-  String? isValidVideoUrl(String path) {
-    Uri? uri = Uri.tryParse(path);
-    return (uri != null && uri.hasScheme && uri.hasAuthority) ? path : null;
   }
 
   Future<List<ItemBaseModel>> collectQueue(ItemBaseModel model) async {
@@ -585,17 +582,14 @@ class PlaybackModelHelper {
 
     PlaybackModel? newModel;
 
-    if ((mediaSource.supportsDirectStream ?? false) || (mediaSource.supportsDirectPlay ?? false)) {
-      final directPlay = directStreamUri(
-            ref.read(serverUrlProvider),
-            itemId: item.id,
-            mediaSource: mediaSource,
-            token: ref.read(userProvider)?.credentials.token,
-          )?.toString() ??
-          '';
+    final playbackUrl = selectPlaybackUrl(
+      ref.read(serverUrlProvider),
+      itemId: item.id,
+      mediaSource: mediaSource,
+      token: ref.read(userProvider)?.credentials.token,
+    );
 
-      final mediaPath = isValidVideoUrl(mediaSource.path ?? "");
-
+    if (playbackUrl?.type == PlaybackUrlType.directStream) {
       newModel = DirectPlaybackModel(
         item: playbackModel.item,
         queue: playbackModel.queue,
@@ -604,11 +598,11 @@ class PlaybackModelHelper {
         chapters: playbackModel.chapters,
         playbackInfo: playbackInfo,
         trickPlay: playbackModel.trickPlay,
-        media: Media(url: mediaPath ?? directPlay),
+        media: Media(url: playbackUrl!.url),
         mediaStreams: mediaStreamsWithUrls,
         bitRateOptions: playbackModel.bitRateOptions,
       );
-    } else if ((mediaSource.supportsTranscoding ?? false) && mediaSource.transcodingUrl != null) {
+    } else if (playbackUrl?.type == PlaybackUrlType.transcode) {
       newModel = TranscodePlaybackModel(
         item: playbackModel.item,
         queue: playbackModel.queue,
@@ -617,7 +611,7 @@ class PlaybackModelHelper {
         chapters: playbackModel.chapters,
         playbackInfo: playbackInfo,
         trickPlay: playbackModel.trickPlay,
-        media: Media(url: buildServerUrl(ref, relativeUrl: mediaSource.transcodingUrl)),
+        media: Media(url: playbackUrl!.url),
         mediaStreams: mediaStreamsWithUrls,
         bitRateOptions: playbackModel.bitRateOptions,
       );
