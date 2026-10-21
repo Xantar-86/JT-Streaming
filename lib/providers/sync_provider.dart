@@ -701,7 +701,7 @@ class SyncNotifier extends StateNotifier<SyncSettingsModel> {
 
     final directory = await Directory(syncItem.directory.path).create(recursive: true);
 
-    final newState = VideoStream.fromPlayBackInfo(playbackData, ref)?.copyWith();
+    final newState = VideoStream.fromPlayBackInfo(playbackData, ref, itemId: syncItem.id)?.copyWith();
     final subtitles = isAudioItem
         ? <SubStreamModel>[]
         : await saveExternalSubtitles(newState?.mediaStreamsModel?.subStreams, syncItem);
@@ -749,7 +749,7 @@ class SyncNotifier extends StateNotifier<SyncSettingsModel> {
       };
       downloadUrl = buildServerUrl(
         ref,
-        pathSegments: [isAudioItem ? 'Audio' : 'Videos', mediaSource.id!, 'stream'],
+        pathSegments: [isAudioItem ? 'Audio' : 'Videos', item.id, 'stream'],
         queryParameters: directOptions,
       );
       log('Using direct stream URL: $downloadUrl');
