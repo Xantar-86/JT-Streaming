@@ -2191,5 +2191,7 @@
     "jtGuidePickHour": "Kies een uur",
     "jtGuideWindow": "{day} · {from}–{to}",
     "jtGuidePastProgram": "Al uitgezonden",
-    "jtGuidePastProgramDesc": "{program} op {channel}, {time}"
+    "jtGuidePastProgramDesc": "{program} op {channel}, {time}",
+    "jtUpdateAvailable": "Nieuwe versie beschikbaar",
+    "jtUpdateReload": "Herladen"
 }

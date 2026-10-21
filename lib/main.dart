@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:fladder/bootstrap/app_bootstrap.dart';
 import 'package:fladder/bootstrap/platform/platform_app_wrapper.dart';
+import 'package:fladder/jt/web/jt_update_check.dart';
 import 'package:fladder/l10n/generated/app_localizations.dart';
 import 'package:fladder/localization_delegates.dart';
 import 'package:fladder/providers/arguments_provider.dart';
@@ -106,7 +107,7 @@ class _FladderApp extends ConsumerWidget {
           },
           builder: (context, child) => MediaQueryScaler(
             child: LocalizationContextWrapper(
-              child: PipLifecycleController(child: child ?? Container()),
+              child: JtUpdateCheck(child: PipLifecycleController(child: child ?? Container())), // JT-HOOK: web-update
               currentLocale: language,
             ),
             enable: ref.read(argumentsStateProvider).leanBackMode,

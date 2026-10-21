@@ -2945,5 +2945,7 @@
       "channel": {"type": "String"},
       "time": {"type": "String"}
     }
-  }
+  },
+  "jtUpdateAvailable": "New version available",
+  "jtUpdateReload": "Reload"
 }
