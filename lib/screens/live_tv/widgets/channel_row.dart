@@ -21,6 +21,14 @@ class ChannelRow extends ConsumerStatefulWidget {
   final Function(double position) scrollToPosition;
   final Function(ChannelProgram program)? onProgramSelected;
   final Function(ChannelProgram program)? onLongPressProgram;
+
+  /// End of the timeline; defaults to the end of the [liveTvProvider] window.
+  final DateTime? timelineEnd;
+
+  /// Programs supplied by the caller. When set, the row does not fetch its own
+  /// programs and shows a spinner while [loading] is true.
+  final List<ChannelProgram>? programs;
+  final bool loading;
   const ChannelRow({
     this.selectedProgram,
     required this.channel,
@@ -28,6 +36,9 @@ class ChannelRow extends ConsumerStatefulWidget {
     required this.scrollToPosition,
     this.onProgramSelected,
     this.onLongPressProgram,
+    this.timelineEnd,
+    this.programs,
+    this.loading = false,
     super.key,
   });
 
@@ -36,34 +47,42 @@ class ChannelRow extends ConsumerStatefulWidget {
 }
 
 class ChannelRowState extends ConsumerState<ChannelRow> {
+  void _fetchPrograms() {
+    if (widget.programs != null) return;
+    Future.microtask(() => ref.read(liveTvProvider.notifier).fetchPrograms(widget.channel));
+  }
+
   @override
   void initState() {
     super.initState();
-    Future.microtask(() => ref.read(liveTvProvider.notifier).fetchPrograms(widget.channel));
+    _fetchPrograms();
   }
 
   @override
   void didUpdateWidget(covariant ChannelRow oldWidget) {
     super.didUpdateWidget(oldWidget);
-    Future.microtask(() => ref.read(liveTvProvider.notifier).fetchPrograms(widget.channel));
+    _fetchPrograms();
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    Future.microtask(() => ref.read(liveTvProvider.notifier).fetchPrograms(widget.channel));
+    _fetchPrograms();
   }
 
   @override
   Widget build(BuildContext context) {
-    final state = ref.watch(liveTvProvider);
-    final channel = state.channels.firstWhere((c) => c.id == widget.channel.id, orElse: () => widget.channel);
+    final explicit = widget.programs != null;
+    final state = explicit ? null : ref.watch(liveTvProvider);
+    final channel = state?.channels.firstWhere((c) => c.id == widget.channel.id, orElse: () => widget.channel) ??
+        widget.channel;
+    final programs = widget.programs ?? channel.programs;
 
-    if (state.loadingChannelIds.contains(channel.id)) {
+    if (explicit ? widget.loading : state!.loadingChannelIds.contains(channel.id)) {
       return const Center(child: CircularProgressIndicator());
     }
 
-    if (channel.programs.isEmpty) {
+    if (programs.isEmpty) {
       return Align(
         alignment: AlignmentDirectional.centerStart,
         child: Padding(
@@ -98,14 +117,14 @@ class ChannelRowState extends ConsumerState<ChannelRow> {
     }
 
     final timelineStart = widget.timelineStart;
-    final timelineEnd = state.endDate;
+    final timelineEnd = widget.timelineEnd ?? state?.endDate ?? ref.read(liveTvProvider).endDate;
     final secondsPerPixel = GuideConstants.widthPerMinute / 60.0;
     final timelineWidth = (timelineEnd.difference(timelineStart).inSeconds * secondsPerPixel).toDouble();
 
     return Stack(
       clipBehavior: Clip.none,
       children: [
-        ...channel.programs.mapIndexed(
+        ...programs.mapIndexed(
           (index, program) {
             final visibleStart = program.startDate.isBefore(timelineStart) ? timelineStart : program.startDate;
             final visibleEnd = program.endDate.isAfter(timelineEnd) ? timelineEnd : program.endDate;
@@ -175,7 +194,7 @@ class ChannelRowState extends ConsumerState<ChannelRow> {
                                 mainAxisSize: MainAxisSize.max,
                                 children: [
                                   if (index == 0 ||
-                                      channel.programs[(index - 1).clamp(0, channel.programs.length)].name !=
+                                      programs[(index - 1).clamp(0, programs.length)].name !=
                                           program.name)
                                     Container(
                                       child: AspectRatio(
