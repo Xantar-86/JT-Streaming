@@ -2879,8 +2879,8 @@
   "jtDvrPadding": "Starts {pre} min early, stops {post} min late",
   "@jtDvrPadding": {
     "placeholders": {
-      "post": {"type": "int"},
-      "pre": {"type": "int"}
+      "pre": {"type": "int"},
+      "post": {"type": "int"}
     }
   },
   "jtDvrNewOnly": "Only new episodes: {value}",
