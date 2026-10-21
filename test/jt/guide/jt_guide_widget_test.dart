@@ -59,10 +59,37 @@ class _EmptyTimers extends JtTimers {
   Future<JtTimersState> build() async => JtTimersState.empty;
 }
 
-Widget _wrap(Widget child, {Locale locale = const Locale('nl'), List<Override> overrides = const []}) =>
+/// Copy of `WidgetsApp._defaultWebShortcuts` (Flutter 3.35.7, widgets/app.dart): on web the arrows are
+/// ScrollIntents, not DirectionalFocusIntents. The tests run in the Dart VM (kIsWeb false), so the web
+/// mapping is passed explicitly to reproduce the browser (WP2.8c D3).
+const Map<ShortcutActivator, Intent> _webDefaultShortcuts = {
+  SingleActivator(LogicalKeyboardKey.space): PrioritizedIntents(
+    orderedIntents: [
+      ActivateIntent(),
+      ScrollIntent(direction: AxisDirection.down, type: ScrollIncrementType.page),
+    ],
+  ),
+  SingleActivator(LogicalKeyboardKey.enter): ButtonActivateIntent(),
+  SingleActivator(LogicalKeyboardKey.numpadEnter): ButtonActivateIntent(),
+  SingleActivator(LogicalKeyboardKey.escape): DismissIntent(),
+  SingleActivator(LogicalKeyboardKey.tab): NextFocusIntent(),
+  SingleActivator(LogicalKeyboardKey.tab, shift: true): PreviousFocusIntent(),
+  SingleActivator(LogicalKeyboardKey.arrowUp): ScrollIntent(direction: AxisDirection.up),
+  SingleActivator(LogicalKeyboardKey.arrowDown): ScrollIntent(direction: AxisDirection.down),
+  SingleActivator(LogicalKeyboardKey.arrowLeft): ScrollIntent(direction: AxisDirection.left),
+  SingleActivator(LogicalKeyboardKey.arrowRight): ScrollIntent(direction: AxisDirection.right),
+  SingleActivator(LogicalKeyboardKey.pageUp): ScrollIntent(direction: AxisDirection.up, type: ScrollIncrementType.page),
+  SingleActivator(LogicalKeyboardKey.pageDown): ScrollIntent(direction: AxisDirection.down, type: ScrollIncrementType.page),
+};
+
+Widget _wrap(Widget child,
+        {Locale locale = const Locale('nl'),
+        List<Override> overrides = const [],
+        Map<ShortcutActivator, Intent>? shortcuts}) =>
     ProviderScope(
       overrides: overrides,
       child: MaterialApp(
+        shortcuts: shortcuts,
         locale: locale,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
@@ -124,7 +151,8 @@ void main() {
     selected.clear();
   });
 
-  Future<JtGuideController> pumpGuide(WidgetTester tester, {Locale locale = const Locale('nl'), double width = 1920}) async {
+  Future<JtGuideController> pumpGuide(WidgetTester tester,
+      {Locale locale = const Locale('nl'), double width = 1920, Map<ShortcutActivator, Intent>? shortcuts}) async {
     tester.view.physicalSize = Size(width, 1080);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
@@ -132,6 +160,7 @@ void main() {
       _GuidePage((program, channel) => selected.add(program.id)),
       locale: locale,
       overrides: overrides(),
+      shortcuts: shortcuts,
     ));
     await tester.pumpAndSettle();
     final container = ProviderScope.containerOf(tester.element(find.byType(JtLiveTvGuide)));
@@ -208,6 +237,50 @@ void main() {
     await tester.pumpAndSettle();
     expect(guide.day, const JtGuideDay(2026, 10, 21));
     expect(guide.rows['c1']!.cells[1], focused());
+  });
+
+  group('web default shortcuts (arrows = ScrollIntent)', () {
+    testWidgets('arrow left on the first program -> yesterday, focus on the last program of the same channel',
+        (tester) async {
+      final guide = await pumpGuide(tester, shortcuts: _webDefaultShortcuts);
+      await focusCell(tester, guide, 'c4', last: false);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+      await tester.pumpAndSettle();
+      expect(guide.day, const JtGuideDay(2026, 10, 20));
+      expect(guide.rowOf(focused())?.channelId, 'c4');
+      expect(guide.rows['c4']!.cells.last, focused());
+    });
+
+    testWidgets('arrow right on the last program -> tomorrow, focus on the first program of the same channel',
+        (tester) async {
+      final guide = await pumpGuide(tester, shortcuts: _webDefaultShortcuts);
+      await focusCell(tester, guide, 'c3', last: true);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pumpAndSettle();
+      expect(guide.day, const JtGuideDay(2026, 10, 22));
+      expect(guide.rowOf(focused())?.channelId, 'c3');
+      expect(guide.rows['c3']!.cells.first, focused());
+    });
+
+    testWidgets('arrows between cells move the focus: right/left in the row, down/up to another channel',
+        (tester) async {
+      final guide = await pumpGuide(tester, shortcuts: _webDefaultShortcuts);
+      await focusCell(tester, guide, 'c1', last: false);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pumpAndSettle();
+      expect(guide.day, const JtGuideDay(2026, 10, 21));
+      expect(guide.rows['c1']!.cells[1], focused());
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+      await tester.pumpAndSettle();
+      expect(guide.rows['c1']!.cells[0], focused());
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+      expect(guide.rowOf(focused())?.channelId, 'c3');
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+      await tester.pumpAndSettle();
+      expect(guide.rowOf(focused())?.channelId, 'c1');
+      expect(guide.day, const JtGuideDay(2026, 10, 21));
+    });
   });
 
   testWidgets('no day change past the last day of the coverage', (tester) async {

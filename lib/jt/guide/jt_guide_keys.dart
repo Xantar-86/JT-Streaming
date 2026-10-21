@@ -20,6 +20,16 @@ const Map<ShortcutActivator, Intent> jtGuideDayShortcuts = {
   SingleActivator(LogicalKeyboardKey.mediaFastForward): JtGuideDayIntent(1),
 };
 
+/// On web WidgetsApp maps the arrows to ScrollIntent (scroll 50 px) instead of
+/// DirectionalFocusIntent; mapping them here makes web behave like
+/// Android/Windows (WP2.8c D3).
+const Map<ShortcutActivator, Intent> jtGuideArrowShortcuts = {
+  SingleActivator(LogicalKeyboardKey.arrowLeft): DirectionalFocusIntent(TraversalDirection.left),
+  SingleActivator(LogicalKeyboardKey.arrowRight): DirectionalFocusIntent(TraversalDirection.right),
+  SingleActivator(LogicalKeyboardKey.arrowUp): DirectionalFocusIntent(TraversalDirection.up),
+  SingleActivator(LogicalKeyboardKey.arrowDown): DirectionalFocusIntent(TraversalDirection.down),
+};
+
 /// Keys of the guide and its toolbar. The standard directional focus stays
 /// the basis; only left/right inside a guide row is handled here so that the
 /// arrow past the last/first program changes the day. OK/Enter stays
@@ -39,7 +49,7 @@ class JtGuideKeys extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Shortcuts(
-      shortcuts: jtGuideDayShortcuts,
+      shortcuts: rowArrows ? {...jtGuideDayShortcuts, ...jtGuideArrowShortcuts} : jtGuideDayShortcuts,
       child: Actions(
         actions: {
           JtGuideDayIntent: CallbackAction<JtGuideDayIntent>(onInvoke: (intent) {
