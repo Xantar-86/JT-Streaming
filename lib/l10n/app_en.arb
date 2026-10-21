@@ -2919,5 +2919,31 @@
   "jtDvrRecordSuccess": "Recording scheduled",
   "jtDvrSeriesSuccess": "Series recording scheduled",
   "jtDvrCancelSuccess": "Recording cancelled",
-  "jtDvrError": "Could not change the recording"
+  "jtDvrError": "Could not change the recording",
+  "jtGuideEarlier": "Earlier",
+  "jtGuideLater": "Later",
+  "jtGuideDay": "Day",
+  "jtGuideHour": "Hour",
+  "jtGuideToday": "Today",
+  "jtGuideTomorrow": "Tomorrow",
+  "jtGuideYesterday": "Yesterday",
+  "jtGuidePickDay": "Choose a day",
+  "jtGuidePickHour": "Choose an hour",
+  "jtGuideWindow": "{day} · {from}–{to}",
+  "@jtGuideWindow": {
+    "placeholders": {
+      "day": {"type": "String"},
+      "from": {"type": "String"},
+      "to": {"type": "String"}
+    }
+  },
+  "jtGuidePastProgram": "Already aired",
+  "jtGuidePastProgramDesc": "{program} on {channel}, {time}",
+  "@jtGuidePastProgramDesc": {
+    "placeholders": {
+      "program": {"type": "String"},
+      "channel": {"type": "String"},
+      "time": {"type": "String"}
+    }
+  }
 }

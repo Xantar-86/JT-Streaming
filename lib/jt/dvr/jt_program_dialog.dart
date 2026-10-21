@@ -25,6 +25,11 @@ Future<void> showJtProgramDialog(
   required ChannelModel channel,
   required VoidCallback onWatch,
 }) {
+  // A program that has fully aired: info only, "Watch" would play the live
+  // channel, not this program (ontwerp-gids-navigatie §5).
+  if (!program.endDate.isAfter(DateTime.now())) {
+    return showJtPastProgramDialog(context, program: program, channel: channel);
+  }
   return showDialog(
     context: context,
     builder: (dialogContext) => AlertDialog(
@@ -54,6 +59,31 @@ Future<void> showJtProgramDialog(
             onWatch();
           },
           child: Text(dialogContext.localized.watch),
+        ),
+      ],
+    ),
+  );
+}
+
+/// "Already aired": program, channel and time, only a Close button.
+Future<void> showJtPastProgramDialog(
+  BuildContext context, {
+  required ChannelProgram program,
+  required ChannelModel channel,
+}) {
+  final locale = Localizations.localeOf(context).toString();
+  final time = '${DateFormat('EEE d MMM HH:mm', locale).format(program.startDate)}'
+      '–${DateFormat('HH:mm', locale).format(program.endDate)}';
+  return showDialog(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: Text(dialogContext.localized.jtGuidePastProgram),
+      content: Text(dialogContext.localized.jtGuidePastProgramDesc(program.name, channel.name, time)),
+      actions: [
+        ElevatedButton(
+          autofocus: AdaptiveLayout.inputDeviceOf(dialogContext) == InputDevice.dPad,
+          onPressed: () => Navigator.of(dialogContext).pop(),
+          child: Text(dialogContext.localized.close),
         ),
       ],
     ),

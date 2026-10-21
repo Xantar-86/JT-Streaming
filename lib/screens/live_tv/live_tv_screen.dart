@@ -5,11 +5,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:fladder/jt/dvr/jt_program_dialog.dart';
 import 'package:fladder/jt/dvr/jt_scheduled_recordings_page.dart';
+import 'package:fladder/jt/guide/jt_guide_toolbar.dart';
+import 'package:fladder/jt/guide/jt_live_tv_guide.dart';
 import 'package:fladder/providers/live_tv_provider.dart';
-import 'package:fladder/screens/live_tv/live_tv_guide.dart';
 import 'package:fladder/util/adaptive_layout/adaptive_layout.dart';
 import 'package:fladder/util/item_base_model/play_item_helpers.dart';
-import 'package:fladder/util/localization_helper.dart';
 
 @RoutePage()
 class LiveTvScreen extends ConsumerStatefulWidget {
@@ -52,30 +52,12 @@ class _LiveTvScreenState extends ConsumerState<LiveTvScreen> {
                         const SizedBox(width: 48),
                       ],
                     ),
-                    Row(
-                      spacing: 6,
-                      children: [
-                        FilledButton(
-                          onPressed: () {
-                            _horizontalScrollController.animateTo(
-                              0,
-                              duration: const Duration(milliseconds: 300),
-                              curve: Curves.easeInOut,
-                            );
-                          },
-                          child: Text(context.localized.now),
-                        ),
-                        ElevatedButton(
-                          onPressed: () {
-                            ref.read(liveTvProvider.notifier).fetchDashboard();
-                          },
-                          child: Text(context.localized.refresh),
-                        ),
-                        const JtScheduledRecordingsButton(), // JT-HOOK: dvr-scheduled
-                      ],
+                    JtGuideToolbar( // JT-HOOK: guide-nav
+                      horizontalScrollController: _horizontalScrollController,
+                      trailing: const JtScheduledRecordingsButton(), // JT-HOOK: dvr-scheduled
                     ),
                     Expanded(
-                      child: LiveTvGuide(
+                      child: JtLiveTvGuide( // JT-HOOK: guide-nav
                         horizontalScrollController: _horizontalScrollController,
                         onProgramSelected: (program, channel) async {
                           await showJtProgramDialog(context, // JT-HOOK: dvr-dialog

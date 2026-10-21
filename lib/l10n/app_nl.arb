@@ -2179,5 +2179,17 @@
     "jtDvrRecordSuccess": "Opname gepland",
     "jtDvrSeriesSuccess": "Reeksopname gepland",
     "jtDvrCancelSuccess": "Opname geannuleerd",
-    "jtDvrError": "Opname wijzigen mislukt"
+    "jtDvrError": "Opname wijzigen mislukt",
+    "jtGuideEarlier": "Eerder",
+    "jtGuideLater": "Later",
+    "jtGuideDay": "Dag",
+    "jtGuideHour": "Uur",
+    "jtGuideToday": "Vandaag",
+    "jtGuideTomorrow": "Morgen",
+    "jtGuideYesterday": "Gisteren",
+    "jtGuidePickDay": "Kies een dag",
+    "jtGuidePickHour": "Kies een uur",
+    "jtGuideWindow": "{day} · {from}–{to}",
+    "jtGuidePastProgram": "Al uitgezonden",
+    "jtGuidePastProgramDesc": "{program} op {channel}, {time}"
 }
