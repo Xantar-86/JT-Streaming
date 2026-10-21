@@ -109,7 +109,7 @@ het vaste venster van upstream (`liveTvProvider`, ongewijzigd: de speler en het 
 | `jt_guide_controller.dart` | getoonde dag en de ene sprongfunctie (Nu, uur, Eerder/Later, dag) |
 | `jt_live_tv_guide.dart` | kopie van upstream `LiveTvGuide` met dagvenster en cache-gestuurde rijen |
 | `jt_guide_toolbar.dart`, `jt_guide_pickers.dart` | knoppenrij, kopregel, dag- en uurkiezer |
-| `jt_guide_keys.dart` | toetsen: pijl voorbij het laatste/eerste programma = volgende/vorige dag; PageUp/PageDown, zender ±, terug-/vooruitspoelen = vorige/volgende dag |
+| `jt_guide_keys.dart` | toetsen: pijl voorbij het laatste/eerste programma = volgende/vorige dag; PageUp/PageDown, zender ±, terug-/vooruitspoelen = vorige/volgende dag; `jtGuideArrowShortcuts` zet de pijlen in de gids expliciet op focusverplaatsing (op web zijn het anders scrolltoetsen) |
 
 | Wil je ... | Pas aan |
 |---|---|
@@ -133,6 +133,10 @@ Flutter registreert in de webversie een service worker (`flutter_service_worker.
 `flutter_bootstrap.js` en `main.dart.js` **cache-first** serveert; alleen `/` gaat eerst naar het netwerk.
 Gevolg zonder ingreep: de eerste keer laden na een uitrol draait nog de oude versie (de nieuwe service worker
 installeert zich op de achtergrond), en een tabblad dat blijft openstaan, krijgt de nieuwe versie nooit.
+Die cache-first-oorzaak geldt voor hosting op `/`. Onder `/fladder/` (productie) serveert de worker die
+bestanden niet uit zijn cache; daar komt de oude versie uit de heuristische HTTP-cache van de browser (de
+server stuurt geen `Cache-Control`). De fix hieronder werkt voor beide: de nieuwe worker haalt de kernbestanden
+op met `cache: 'reload'`, wat ook de HTTP-cache overschrijft (bewijs: `docs/wp2.8c-reviewrapport.md`, E1).
 Twee lagen:
 
 1. **Service worker** (nabewerking in `tool/jt/build-web.ps1`, functie `Update-ServiceWorker`; de bron blijft
