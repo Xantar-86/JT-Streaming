@@ -96,6 +96,64 @@ getoond. Teksten: sleutels `jtDvr…` achteraan in `lib/l10n/app_en.arb` en `app
 (`// JT-HOOK: dvr-…`): `live_tv_screen.dart` (dialoog + knop "Geplande opnames"), `channel_row.dart`
 (rood bolletje), `video_player_guide_wrapper.dart` en `channel_program_item.dart` (knoppen).
 
+### Gids-navigatie
+
+Code in `lib/jt/guide/` (ontwerp: `docs/ontwerp-gids-navigatie.md` in de projectmap). De gids toont één
+**lokale kalenderdag** (00:00-24:00; op de dag van de winteruur-overgang 25 u, in maart 23 u) in plaats van
+het vaste venster van upstream (`liveTvProvider`, ongewijzigd: de speler en het startscherm gebruiken het nog).
+
+| Bestand | Inhoud |
+|---|---|
+| `jt_guide_day.dart` | dag, venster, stap van Eerder/Later, tijdlabels, filter (puur, getest) |
+| `jt_guide_cache.dart` | programma's per (dag, zender): batches van max. 20 zenders per GET, max. 3 dagen (LRU), na 60 min opnieuw ophalen met de oude data zichtbaar; EPG-dekking voor de dagkiezer |
+| `jt_guide_controller.dart` | getoonde dag en de ene sprongfunctie (Nu, uur, Eerder/Later, dag) |
+| `jt_live_tv_guide.dart` | kopie van upstream `LiveTvGuide` met dagvenster en cache-gestuurde rijen |
+| `jt_guide_toolbar.dart`, `jt_guide_pickers.dart` | knoppenrij, kopregel, dag- en uurkiezer |
+| `jt_guide_keys.dart` | toetsen: pijl voorbij het laatste/eerste programma = volgende/vorige dag; PageUp/PageDown, zender ±, terug-/vooruitspoelen = vorige/volgende dag |
+
+| Wil je ... | Pas aan |
+|---|---|
+| de stap van Eerder/Later | `jtGuideStep` in `jt_guide_day.dart` (nu 0,75 × het zichtbare venster, 60-180 min) |
+| meer of minder dagen in het geheugen | `JtGuideCache.maxDays` (nu 3) |
+| hoe snel de gids opnieuw ophaalt | `JtGuideCache.ttl` (nu 60 min) |
+| de zenders per request | `JtGuideCache.batchSize` (nu 20) |
+| andere toetsen voor vorige/volgende dag | `jtGuideDayShortcuts` in `jt_guide_keys.dart` |
+| de teksten | sleutels `jtGuide…` achteraan in `lib/l10n/app_en.arb` en `app_nl.arb` (daarna `flutter gen-l10n`) |
+
+De dagkiezer biedt de dagen aan van het vroegste tot het laatste programma in de EPG (`/LiveTv/Programs`,
+`Limit=1`, oplopend en aflopend); lukt dat niet, dan `/LiveTv/GuideInfo`, anders vandaag t/m vandaag + 6.
+Een volledig uitgezonden programma opent een info-dialoog ("Al uitgezonden") zonder "Kijken". Upstream-aanraking:
+`live_tv_screen.dart` (`// JT-HOOK: guide-nav`, 2 regels: knoppenrij → `JtGuideToolbar`, `LiveTvGuide` →
+`JtLiveTvGuide`) en `channel_row.dart` (3 optionele parameters `timelineEnd`, `programs`, `loading`; generiek,
+zonder hook, upstream-geschikt).
+
+### Updates in de browser (service worker)
+
+Flutter registreert in de webversie een service worker (`flutter_service_worker.js`) die
+`flutter_bootstrap.js` en `main.dart.js` **cache-first** serveert; alleen `/` gaat eerst naar het netwerk.
+Gevolg zonder ingreep: de eerste keer laden na een uitrol draait nog de oude versie (de nieuwe service worker
+installeert zich op de achtergrond), en een tabblad dat blijft openstaan, krijgt de nieuwe versie nooit.
+Twee lagen:
+
+1. **Service worker** (nabewerking in `tool/jt/build-web.ps1`, functie `Update-ServiceWorker`; de bron blijft
+   Flutters eigen sjabloon). Verschilt de bestandslijst van de nieuwe versie van de vorige, dan begint de nieuwe
+   worker bij activatie met een lege cache en herlaadt hij de open tabbladen (`clients.claim()` +
+   `client.navigate()`). Bestanden die de worker achteraf ophaalt, worden gevalideerd (`cache: 'no-cache'`).
+   De nabewerking zoekt drie vaste stukken tekst in het Flutter-sjabloon; ontbreekt er één (nieuwe
+   Flutter-versie), dan stopt de build met een foutmelding: pas dan de ankers in het script aan.
+2. **Versiecheck** (`lib/jt/web/jt_update_check.dart`, alleen web): bij het starten en elke 30 min haalt de
+   app `jt-buildinfo.json` op (`cache: no-store`). Staat daar een andere `buildId` dan de ingebouwde
+   (`--dart-define=JT_BUILD_ID`, door het buildscript gezet), dan toont de app onderaan
+   "Nieuwe versie beschikbaar · Herladen". Herladen = de service worker bijwerken (die wist de oude caches
+   en herlaadt het tabblad); is er geen nieuwe worker, dan worden de caches gewist, de worker
+   uitgeschreven en de pagina herladen. Op Windows en Android doet dit niets. Hook:
+   `// JT-HOOK: web-update` in `lib/main.dart` (wrapper in de `builder` van `MaterialApp.router`).
+   Testhulp: `localStorage['jt-update-interval-s'] = '10'` verkort het interval (minimum 5 s).
+
+Wie nog een versie van vóór jt.6 open heeft, draait de oude service worker: daar helpt alleen herladen.
+Bij het eerste herladen na de uitrol start de oude versie nog één keer; de nieuwe service worker neemt dan
+over en herlaadt het tabblad zelf (bewijs: `docs/wp2.8b-verslag.md` in de projectmap).
+
 ### Hooks in upstream-bestanden
 
 Elke plek waar een upstream-bestand naar `lib/jt/` verwijst, is gemarkeerd met `// JT-HOOK: <naam>`.
@@ -276,7 +334,7 @@ Per conflict:
 Daarna:
 
 ```powershell
-git grep -c "JT-HOOK" -- lib ":!lib/jt"   # verwacht: 48 regels in 24 bestanden (stand jt.5, opnemen/DVR)
+git grep -c "JT-HOOK" -- lib ":!lib/jt"   # verwacht: 51 regels in 25 bestanden (stand jt.6: gids-navigatie + web-update)
 git grep -c "JT-PATCH" -- third_party ":!*.md"   # verwacht: 9 regels in 2 bestanden (stand jt.3)
 flutter analyze
 flutter test
