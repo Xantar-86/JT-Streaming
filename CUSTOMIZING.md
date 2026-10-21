@@ -115,7 +115,9 @@ pwsh tool/jt/build-web.ps1 -Clean -BuildNumber 1
 - Iconen worden telkens opnieuw gegenereerd (`tool/jt/generate-icons.ps1`, idempotent).
 - Uitvoer: `build/web/` (met `LICENSE.txt` en `jt-buildinfo.json`) en in `dist/`:
   `jt-streaming-web/` (Docker-build-context met het ongewijzigde upstream-`Dockerfile`),
-  `jt-streaming-web-<versie>.tar` en `.tar.sha256`. Versie = `0.11.1-jt.<BuildNumber>`.
+  `jt-streaming-web-<versie>.tar` en `.tar.sha256`. Versie = `0.11.1-jt.<BuildNumber>`, of `0.11.1-jt.<JtVersion>` met
+  `-JtVersion 5.2` (tussenversies; zelfde regel als `build-android.ps1`, bv. `-BuildNumber 5002`).
+- Bouw ná het taggen: `BUILDINFO.txt`/`jt-buildinfo.json` tonen dan `source=<tag>`.
 - Exitcode ≠ 0 bij elke fout.
 - Testnorm: `flutter analyze` geeft 0 meldingen en `flutter test` is volledig groen, **behalve 1 bekend
   rode upstream-test `test/widget_test.dart`** (al rood op upstream `v0.11.1`, "No ProviderScope").
@@ -129,7 +131,7 @@ pwsh tool/jt/build-web.ps1 -Clean -BuildNumber 1
 pwsh tool/jt/build-windows.ps1 -Clean -BuildNumber 2
 ```
 
-- Zelfde Flutter-, lockfile- en icoonregels als de webbuild; versie = `0.11.1-jt.<BuildNumber>`.
+- Zelfde Flutter-, lockfile- en icoonregels als de webbuild; versie = `0.11.1-jt.<BuildNumber>` (of `-jt.<JtVersion>` met `-JtVersion`).
 - Uitvoer: `build/windows/x64/runner/Release/JT-Streaming.exe` en in `dist/`:
   `JT-Streaming-Windows-<versie>-Setup.exe` + `.sha256`. Exitcode ≠ 0 bij elke fout.
 - **Bouw in een kort pad** (bv. `C:\src\jt-streaming`), niet in een diepe map of onder `%TEMP%`.

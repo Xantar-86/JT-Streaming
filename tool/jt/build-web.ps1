@@ -3,14 +3,15 @@
   Bouwt de JT-Streaming-webversie en de Docker-build-context (tar + sha256) in één opdracht.
 
 .DESCRIPTION
-  pwsh tool/jt/build-web.ps1 [-Clean] [-BuildNumber N]
+  pwsh tool/jt/build-web.ps1 [-Clean] [-BuildNumber N] [-JtVersion 5.2]
 
   1. Controleert de Flutter-versie tegen .fvmrc (stopt bij verschil).
   2. Noteert `git describe --tags --always --dirty` (waarschuwt bij een vuile werkmap).
   3. -Clean: flutter clean.
   4. flutter pub get --enforce-lockfile (reproduceerbaar: pubspec.lock pint ook de git-dependencies).
   5. tool/jt/generate-icons.ps1.
-  6. flutter build web --release --build-name <basis>-jt.<N> --build-number <N>.
+  6. flutter build web --release --build-name <basis>-jt.<JtVersion of N> --build-number <N>.
+     -JtVersion (bv. 5.2) zet alleen het versielabel; zonder -JtVersion is het label jt.<N>.
   7. LICENSE -> build/web/LICENSE.txt, build/web/jt-buildinfo.json.
   8. dist/jt-streaming-web/ (build/web, upstream-Dockerfile, docker-entrypoint.sh, LICENSE,
      README-deploy.md, BUILDINFO.txt) -> dist/jt-streaming-web-<versie>.tar + .sha256.
@@ -26,7 +27,9 @@
 param(
   [switch]$Clean,
   [ValidateRange(1, 100000)]
-  [int]$BuildNumber = 1
+  [int]$BuildNumber = 1,
+  [ValidatePattern('^[0-9]+(\.[0-9]+)?$')]
+  [string]$JtVersion
 )
 
 $ErrorActionPreference = 'Stop'
@@ -78,9 +81,9 @@ try {
   if ($status) { Write-Warning "Werkmap is niet schoon:`n$($status -join "`n")" }
   Write-Host "Bron: $describe ($commit)"
 
-  # Versie: <upstream-basis>-jt.<N>
+  # Versie: <upstream-basis>-jt.<JtVersion of N>
   $pubVersion = (Select-String -Path 'pubspec.yaml' -Pattern '^version:\s*([0-9]+\.[0-9]+\.[0-9]+)').Matches[0].Groups[1].Value
-  $buildName = "$pubVersion-jt.$BuildNumber"
+  $buildName = "$pubVersion-jt.$(if ($JtVersion) { $JtVersion } else { $BuildNumber })"
   Write-Host "Versie: $buildName (build $BuildNumber)"
 
   # Desktop-flags tijdelijk uit zonder symlink-rechten

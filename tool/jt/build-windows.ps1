@@ -3,7 +3,7 @@
   Bouwt de JT-Streaming-Windows-app en de installer (Setup.exe + sha256) in één opdracht.
 
 .DESCRIPTION
-  pwsh tool/jt/build-windows.ps1 [-Clean] [-BuildNumber N]
+  pwsh tool/jt/build-windows.ps1 [-Clean] [-BuildNumber N] [-JtVersion 5.2]
 
   1. Controleert de Flutter-versie tegen .fvmrc (stopt bij verschil) en het symlink-recht
      (Developer Mode of admin; zonder kan `flutter pub get` de Windows-plugins niet koppelen).
@@ -11,7 +11,8 @@
   3. -Clean: flutter clean.
   4. flutter pub get --enforce-lockfile.
   5. tool/jt/generate-icons.ps1.
-  6. flutter build windows --release --build-name <basis>-jt.<N> --build-number <N>.
+  6. flutter build windows --release --build-name <basis>-jt.<JtVersion of N> --build-number <N>.
+     -JtVersion (bv. 5.2) zet alleen het versielabel; zonder -JtVersion is het label jt.<N>.
   7. Wizardafbeeldingen (build/jt-installer/) uit het JT-logo.
   8. Inno Setup (tool/jt/windows_setup-jt.iss) -> dist/JT-Streaming-Windows-<versie>-Setup.exe + .sha256.
   Exitcode 0 bij succes, 1 bij elke fout.
@@ -27,7 +28,9 @@
 param(
   [switch]$Clean,
   [ValidateRange(1, 100000)]
-  [int]$BuildNumber = 1
+  [int]$BuildNumber = 1,
+  [ValidatePattern('^[0-9]+(\.[0-9]+)?$')]
+  [string]$JtVersion
 )
 
 $ErrorActionPreference = 'Stop'
@@ -119,9 +122,9 @@ try {
   if ($status) { Write-Warning "Werkmap is niet schoon:`n$($status -join "`n")" }
   Write-Host "Bron: $describe ($commit)"
 
-  # Versie: <upstream-basis>-jt.<N>
+  # Versie: <upstream-basis>-jt.<JtVersion of N>
   $pubVersion = (Select-String -Path 'pubspec.yaml' -Pattern '^version:\s*([0-9]+\.[0-9]+\.[0-9]+)').Matches[0].Groups[1].Value
-  $buildName = "$pubVersion-jt.$BuildNumber"
+  $buildName = "$pubVersion-jt.$(if ($JtVersion) { $JtVersion } else { $BuildNumber })"
   Write-Host "Versie: $buildName (build $BuildNumber)"
 
   # 3. Clean
