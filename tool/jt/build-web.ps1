@@ -12,7 +12,9 @@
   5. tool/jt/generate-icons.ps1.
   6. flutter build web --release --build-name <basis>-jt.<JtVersion of N> --build-number <N>.
      -JtVersion (bv. 5.2) zet alleen het versielabel; zonder -JtVersion is het label jt.<N>.
-  7. LICENSE -> build/web/LICENSE.txt, build/web/jt-buildinfo.json.
+     --dart-define=JT_BUILD_ID=<versie>+<N> (versiecheck in de webapp, lib/jt/web/).
+     Daarna nabewerking van build/web/flutter_service_worker.js (Update-ServiceWorker, zie hieronder).
+  7. LICENSE -> build/web/LICENSE.txt, build/web/jt-buildinfo.json (met buildId).
   8. dist/jt-streaming-web/ (build/web, upstream-Dockerfile, docker-entrypoint.sh, LICENSE,
      README-deploy.md, BUILDINFO.txt) -> dist/jt-streaming-web-<versie>.tar + .sha256.
   Exitcode 0 bij succes, 1 bij elke fout.
@@ -44,6 +46,57 @@ function Invoke-Native([string]$exe, [string[]]$arguments) {
   Write-Host "> $(Split-Path -Leaf $exe) $($arguments -join ' ')"
   & $exe @arguments
   if ($LASTEXITCODE -ne 0) { throw "$(Split-Path -Leaf $exe) $($arguments -join ' ') faalde (exit $LASTEXITCODE)" }
+}
+
+# Service worker (WP2.8b): Flutter's flutter_service_worker.js serves flutter_bootstrap.js and main.dart.js
+# cache-first, so the first load after a deployment still runs the old bundle and nothing reloads the tab.
+# Three small changes, each anchored on the exact Flutter 3.35.7 text (the build stops when an anchor is gone):
+#  1. activate: when RESOURCES differ from the saved manifest, start from an empty cache (no reuse of old
+#     entries) and, after clients.claim(), reload the open tabs so they get the new bundle;
+#  2. lazy fetches revalidate (cache: 'no-cache'), so a heuristically fresh HTTP-cache copy of an old file
+#     (nginx sends no Cache-Control) cannot end up in the new cache;
+#  3. a header comment with the build id.
+function Update-ServiceWorker([string]$file, [string]$buildId) {
+  $sw = [IO.File]::ReadAllText($file).Replace("`r`n", "`n")
+  $patches = @(
+    @{
+      old = "      var manifest = await manifestCache.match('manifest');`n"
+      new = "      var manifest = await manifestCache.match('manifest');`n" +
+            "      // JT-Streaming: another bundle starts from an empty cache and reloads the open tabs.`n" +
+            "      var jtChanged = false;`n" +
+            "      if (manifest) {`n" +
+            "        jtChanged = (await manifest.clone().text()) !== JSON.stringify(RESOURCES);`n" +
+            "        if (jtChanged) manifest = null;`n" +
+            "      }`n"
+    },
+    @{
+      old = "        // Claim client to enable caching on first launch`n        self.clients.claim();`n        return;`n"
+      new = "        // Claim client to enable caching on first launch`n        await self.clients.claim();`n" +
+            "        // After activation (navigate() inside waitUntil would wait for this activation).`n        if (jtChanged) setTimeout(jtReloadClients, 100);`n        return;`n"
+    },
+    @{
+      old = "return response || fetch(event.request).then((response) => {"
+      new = "return response || fetch(new Request(event.request, {'cache': 'no-cache'})).then((response) => {"
+    }
+  )
+  foreach ($p in $patches) {
+    $count = ([regex]::Matches($sw, [regex]::Escape($p.old))).Count
+    if ($count -ne 1) { throw "flutter_service_worker.js: anker $count keer gevonden (verwacht 1): $($p.old.Trim())" }
+    $sw = $sw.Replace($p.old, $p.new)
+  }
+  $sw = "// JT-Streaming $buildId, patched by tool/jt/build-web.ps1 (see CUSTOMIZING.md, service worker)`n" + $sw +
+    "`n// JT-Streaming: reload the open tabs after an update so they run the new bundle.`n" +
+    "async function jtReloadClients() {`n" +
+    "  const clients = await self.clients.matchAll({type: 'window'});`n" +
+    "  for (const client of clients) {`n" +
+    "    try {`n" +
+    "      await client.navigate(client.url);`n" +
+    "    } catch (e) {`n" +
+    "      console.warn('[jt-sw] reload of an open tab failed', e);`n" +
+    "    }`n" +
+    "  }`n" +
+    "}`n"
+  [IO.File]::WriteAllText($file, $sw, [Text.UTF8Encoding]::new($false))
 }
 
 function Test-SymlinkSupport {
@@ -84,7 +137,8 @@ try {
   # Versie: <upstream-basis>-jt.<JtVersion of N>
   $pubVersion = (Select-String -Path 'pubspec.yaml' -Pattern '^version:\s*([0-9]+\.[0-9]+\.[0-9]+)').Matches[0].Groups[1].Value
   $buildName = "$pubVersion-jt.$(if ($JtVersion) { $JtVersion } else { $BuildNumber })"
-  Write-Host "Versie: $buildName (build $BuildNumber)"
+  $buildId = "$buildName+$BuildNumber"
+  Write-Host "Versie: $buildName (build $BuildNumber, build id $buildId)"
 
   # Desktop-flags tijdelijk uit zonder symlink-rechten
   if (-not (Test-SymlinkSupport)) {
@@ -109,9 +163,12 @@ try {
   if ($LASTEXITCODE -ne 0) { throw "generate-icons.ps1 faalde (exit $LASTEXITCODE)" }
 
   # 6. Bouw
-  Invoke-Native $flutter @('build', 'web', '--release', '--build-name', $buildName, '--build-number', "$BuildNumber")
+  Invoke-Native $flutter @('build', 'web', '--release', '--build-name', $buildName, '--build-number', "$BuildNumber",
+    "--dart-define=JT_BUILD_ID=$buildId")
   $web = Join-Path $repo 'build\web'
   if (-not (Test-Path (Join-Path $web 'index.html'))) { throw 'build/web/index.html ontbreekt na de bouw' }
+  Update-ServiceWorker (Join-Path $web 'flutter_service_worker.js') $buildId
+  Write-Host 'flutter_service_worker.js nabewerkt (JT-update)'
 
   # 7. Licentie en buildinfo in de webapp
   Copy-Item -Force 'LICENSE' (Join-Path $web 'LICENSE.txt')
@@ -119,6 +176,7 @@ try {
     name           = 'JT-Streaming'
     version        = $buildName
     buildNumber    = $BuildNumber
+    buildId        = $buildId
     source         = $describe
     commit         = $commit
     flutter        = $installed
