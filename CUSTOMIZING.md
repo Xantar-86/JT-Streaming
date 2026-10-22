@@ -301,7 +301,7 @@ Remotes:
 | Remote | URL | Gebruik |
 |---|---|---|
 | `upstream` | `https://github.com/DonutWare/Fladder` | alleen fetch; push-URL staat op `DISABLED-no-upstream-push` |
-| `origin` | `https://github.com/Xantar-86/JT-Streaming.git` | onze fork; we pushen alleen `jt/main` (en eventuele PR-branches) |
+| `origin` | `https://github.com/Xantar-86/JT-Streaming.git` | onze fork; we pushen alleen `jt/main` (de oude `upstream/*-v2`-branches blijven staan als referentie) |
 
 In de fork staan `develop`, `main` en tag `v0.11.1` gelijk aan upstream (tag = `a30343a3`).
 Geen force-push op `main`/`develop`, en `v0.11.1` niet wijzigen. Het push-token komt nooit in de
@@ -309,9 +309,15 @@ remote-URL: gebruik `git credential` of een eenmalige URL op de opdrachtregel, e
 achteraf met `git remote -v`. Na een rebase is een push van `jt/main` een
 `git push --force-with-lease origin jt/main` (alleen op die branch).
 
+**Onze patches blijven altijd mee.** Besluit van de board (22/10/2026): JT-Streaming dient geen
+pull requests in bij DonutWare/Fladder of media-kit. Onze fixes en de vendor-patch op `media_kit`
+zitten dus alleen in deze fork en moeten bij elke rebase opnieuw mee. De branches
+`upstream/fix-live-tv-stream-url-v2` en `upstream/fix-channel-logo-aspect-v2` (fork JT-Streaming) en
+`fix-web-hls-prefer-hlsjs` (media-kit, alleen lokaal) zijn alleen nog referentie; niet indienen, niet bijwerken.
+
 Onze commits staan bovenop upstream-tag `v0.11.1` op branch `jt/main`:
 
-1. `fix(playback)`, 2. `fix(live-tv)`, 3. `fix(ui)`: upstream-geschikt, geen `lib/jt/`-verwijzingen.
+1. `fix(playback)`, 2. `fix(live-tv)`, 3. `fix(ui)`: los van `lib/jt/` gehouden, zodat ze klein blijven bij een rebase.
 4. `chore(jt)`, 5. `feat(jt): rebrand`, 6. `feat(jt): theme layer`, 7. `feat(jt): defaults`, 8. `build(jt)`.
 9. Vanaf jt.3: `chore(jt): vendor media_kit ... unchanged` en `fix(web): ... hls.js` (fix 1d,
    `third_party/media_kit/`, override in `pubspec.yaml`).
@@ -324,8 +330,10 @@ git rebase --onto vX.Y.Z v0.11.1 jt/main   # vorige basis -> nieuwe tag
 ```
 
 Per conflict:
-- **Fix-commits (1-3):** heeft upstream de fix overgenomen, laat de commit vallen (`git rebase --skip`).
-  Is de code verplaatst, pas de kleine wijziging op de nieuwe plek opnieuw toe.
+- **Fix-commits (1-3) en fix 1d:** standaard altijd behouden. Is de code verplaatst, pas de kleine
+  wijziging op de nieuwe plek opnieuw toe. Alleen als upstream zelf aantoonbaar hetzelfde probleem
+  heeft opgelost (live tv speelt, logo's niet bijgesneden, web-HLS via hls.js), mag de commit
+  vallen (`git rebase --skip`); test dat dan eerst op de nieuwe upstream-versie.
 - **Hook-commits:** upstream wijzigde de regel rond een hook. Neem de upstream-versie en zet de
   `// JT-HOOK`-regel er opnieuw in.
 - **Binaire iconen:** `git checkout --ours <bestand>`, daarna `pwsh tool/jt/generate-icons.ps1`.
