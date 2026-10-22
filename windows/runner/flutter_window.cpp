@@ -4,6 +4,7 @@
 
 #include "desktop_multi_window/desktop_multi_window_plugin.h"
 #include "flutter/generated_plugin_registrant.h"
+#include "jt_accessibility_gate.h"  // JT: WP2.11
 
 FlutterWindow::FlutterWindow(const flutter::DartProject& project)
     : project_(project) {}
@@ -34,6 +35,8 @@ bool FlutterWindow::OnCreate() {
     
   });
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
+  // JT: WP2.11 - keep semantics off unless a screen reader is active.
+  JtInstallAccessibilityGate(flutter_controller_->view()->GetNativeWindow());
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
     this->Show();

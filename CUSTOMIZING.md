@@ -228,10 +228,28 @@ pwsh tool/jt/build-windows.ps1 -Clean -BuildNumber 2
 | `windows/runner/Runner.rc` | versie-resource: CompanyName, FileDescription, InternalName, LegalCopyright, OriginalFilename, ProductName |
 | `windows/runner/resources/app_icon.ico` | JT-icoon (gegenereerd door `generate-icons.ps1`) |
 | `lib/services/notification_service.dart` | `appUserModelId`/`guid` → `JtBrand.windowsAppUserModelId` (`be.thoelen.jtstreaming`) en `JtBrand.windowsNotificationGuid` (2 hooks) |
+| `windows/runner/flutter_window.cpp` | include + 1 regel `JtInstallAccessibilityGate(...)` na `SetChildContent` (`// JT: WP2.11`) |
+| `windows/runner/CMakeLists.txt` | bron `jt_accessibility_gate.cpp` + `comctl32.lib` (`# JT: WP2.11`) |
 
 Bij een conflict in deze bestanden: neem de upstream-versie en zet onze regel(s) er opnieuw in.
 Niet gewijzigd: de mpv-venstertitel `nl.jknaapen.fladder` in `lib/wrappers/players/lib_mpv.dart`
 (intern, niet zichtbaar) en de Flatpak-id's.
+
+Eigen bestanden (geen conflict bij rebase): `windows/runner/jt_accessibility_gate.{h,cpp}`.
+
+#### Toegankelijkheid op Windows (blijvende patch, WP2.11)
+
+Crash jt.6.1 (22/10/2026, `flutter_windows.dll` 0xc0000005): de Flutter-engine zet de
+toegankelijkheidsboom (semantics) aan zodra *een* programma de app via MSAA/UI Automation bevraagt, en
+crasht daarna soms in `AccessibilityBridge::CreateRemoveReparentedNodesUpdate` als de boom snel
+verandert (bv. bladeren in de muziekbibliotheek). Upstream: flutter/flutter#175041, nog geen fix.
+De runner-poort `jt_accessibility_gate` laat die verzoeken alleen door naar Flutter als een
+schermlezer actief is (`SPI_GETSCREENREADER`, of Verteller: `HKCU\Software\Microsoft\Narrator\NoRoam\RunningState`),
+of als de omgevingsvariabele `JT_ACCESSIBILITY=1` gezet is. Andere programma's krijgen het
+standaardantwoord van Windows; de semantics blijven dan uit.
+Bij een rebase/Flutter-update: patch behouden tot upstream #175041 aantoonbaar opgelost is
+(controleer `CreateRemoveReparentedNodesUpdate` in `shell/platform/common/accessibility_bridge.cc`:
+null-parent- en `iter == end`-controle). Pas dan mag hij weg.
 
 ### Android TV-app (apk)
 
