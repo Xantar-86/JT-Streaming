@@ -128,7 +128,11 @@ try {
   Write-Host "Versie: $buildName (build $BuildNumber)"
 
   # 3. Clean
-  if ($Clean) { Invoke-Native $flutter @('clean') }
+  if ($Clean) {
+    Invoke-Native $flutter @('clean')
+    # JT: WP2.11 (4-O1 uit THEAAA-178) - flutter clean faalt soms stil (vergrendelde bestanden); dan niet doorbouwen.
+    if (Test-Path (Join-Path $repo 'build')) { throw 'flutter clean liet build\ staan (vergrendeld bestand?); sluit de app/verkenner en probeer opnieuw.' }
+  }
 
   # 4. Dependencies
   Invoke-Native $flutter @('pub', 'get', '--enforce-lockfile')
