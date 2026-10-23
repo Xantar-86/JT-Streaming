@@ -251,6 +251,22 @@ Bij een rebase/Flutter-update: patch behouden tot upstream #175041 aantoonbaar o
 (controleer `CreateRemoveReparentedNodesUpdate` in `shell/platform/common/accessibility_bridge.cc`:
 null-parent- en `iter == end`-controle). Pas dan mag hij weg.
 
+Gevolg (aanvaard door de board op 23/10/2026; Jochen gebruikt geen schermlezer of spraakbediening):
+programma's die de app via UI Automation lezen maar geen schermlezer zijn, zoals Spraaktoegang
+(Voice Access), Inspect/Accessibility Insights of UIA-testtools, zien in JT-Streaming alleen het
+lege venster en niet de knoppen of teksten.
+
+**Poort weer uitzetten:**
+- *Zonder herbouw, per gebruiker:* zet `JT_ACCESSIBILITY=1` (PowerShell:
+  `[Environment]::SetEnvironmentVariable('JT_ACCESSIBILITY','1','User')`), meld af en weer aan
+  (of herstart Verkenner) en start de app opnieuw. Flutter krijgt dan elk MSAA/UIA-verzoek, zoals
+  zonder de patch. Terugdraaien: dezelfde opdracht met `$null` als waarde.
+- *Blijvend, in de code:* verwijder in `windows/runner/flutter_window.cpp` de include en de regel
+  `JtInstallAccessibilityGate(...)` (`// JT: WP2.11`), haal in `windows/runner/CMakeLists.txt`
+  `jt_accessibility_gate.cpp` en `comctl32.lib` weg (`# JT: WP2.11`), verwijder
+  `windows/runner/jt_accessibility_gate.{h,cpp}` en herbouw met `build-windows.ps1 -Clean`.
+  Let op: daarmee komt de crash van jt.6.1 terug zolang upstream #175041 niet opgelost is.
+
 ### Android TV-app (apk)
 
 ```powershell
