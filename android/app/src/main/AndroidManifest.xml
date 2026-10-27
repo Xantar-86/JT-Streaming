@@ -114,4 +114,9 @@
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/wallpaper_file_paths" />
         </provider>
     </application>
+    <!-- JT-HOOK: external-intent. Zichtbaarheid (Android 11+) voor vtmGO/GOPlay in de zijbalk. -->
+    <queries>
+        <package android:name="be.vmma.vtm.zenderapp" />
+        <package android:name="be.goplay.app" />
+    </queries>
 </manifest>

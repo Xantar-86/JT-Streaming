@@ -5,6 +5,7 @@ import 'package:dynamic_color/dynamic_color.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:iconsax_plus/iconsax_plus.dart';
 
+import 'package:fladder/jt/jt_streaming_services.dart';
 import 'package:fladder/models/collection_types.dart';
 import 'package:fladder/models/items/playlist_model.dart';
 import 'package:fladder/models/library_filters_model.dart';
@@ -77,13 +78,26 @@ class SideNavigationButtons extends ConsumerWidget {
           ref,
         )
       ] else ...[
-        ...views.map(
+        // JT-HOOK: sidebar-streaming (vtmGO/GOPlay tussen de bibliotheken)
+        ...JtStreamingServices.weave<Widget>(
+          views,
           (view) => ViewNavigationItem(
             view: view,
             expandedSideBar: expandedSideBar,
             usePostersForLibrary: usePostersForLibrary,
             shouldExpand: shouldExpand,
             toolTipPosition: tooltipPosition,
+          ),
+          (service) => CombinedViewNavigationItem(
+            label: service.name,
+            pathKey: service.pathKey,
+            expandedSideBar: expandedSideBar,
+            usePostersForLibrary: usePostersForLibrary,
+            shouldExpand: shouldExpand,
+            selectedIcon: const Icon(IconsaxPlusBold.play_circle),
+            icon: const Icon(IconsaxPlusLinear.play_circle),
+            customIcon: JtStreamingServices.icon(service),
+            onTap: () => JtStreamingServices.open(service),
           ),
         )
       ]
@@ -93,7 +107,8 @@ class SideNavigationButtons extends ConsumerWidget {
       ...filters,
       ...(musicDashboard
           ? [...MusicLibraryItem.fromViews(context, views, expandedSideBar, ref), ...playLists.keys]
-          : views),
+          // JT-HOOK: sidebar-streaming (zelfde volgorde als navItems)
+          : JtStreamingServices.weave<Object>(views, (view) => view, (service) => service)),
     ];
 
     return Column(
@@ -222,6 +237,18 @@ class SideNavigationButtons extends ConsumerWidget {
                                   usePoster: usePostersForLibrary,
                                   backgroundColor: backgroundColor,
                                 ),
+                                Text(e.name),
+                              ],
+                            ),
+                          );
+                        } else if (e is JtStreamingService) {
+                          // JT-HOOK: sidebar-streaming
+                          return PopupMenuItem(
+                            onTap: () => JtStreamingServices.open(e),
+                            child: Row(
+                              spacing: 8,
+                              children: [
+                                JtStreamingServices.icon(e),
                                 Text(e.name),
                               ],
                             ),

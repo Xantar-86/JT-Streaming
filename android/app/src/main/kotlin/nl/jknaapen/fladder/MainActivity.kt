@@ -23,6 +23,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.FileProvider
 import com.ryanheise.audioservice.AudioServiceFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.plugin.common.MethodChannel
 import nl.jknaapen.fladder.objects.PlayerSettingsObject
 import nl.jknaapen.fladder.objects.TranslationsMessenger
 import nl.jknaapen.fladder.objects.VideoPlayerObject
@@ -83,6 +84,17 @@ class MainActivity : AudioServiceFragmentActivity(), NativeVideoActivity {
             }
         )
 
+        // JT-HOOK: external-intent (vtmGO/GOPlay in de zijbalk, zie lib/jt/jt_streaming_services.dart)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, JT_INTENT_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                if (call.method == "openIntentUri") {
+                    val uri = call.argument<String>("uri")
+                    result.success(uri != null && jtOpenIntentUri(uri))
+                } else {
+                    result.notImplemented()
+                }
+            }
+
         LocalNetworkPermissionPigeon.setUp(
             flutterEngine.dartExecutor.binaryMessenger,
             api = object : LocalNetworkPermissionPigeon {
@@ -138,4 +150,50 @@ class MainActivity : AudioServiceFragmentActivity(), NativeVideoActivity {
     }
 
     override fun isLeanBackEnabled(): Boolean = leanBackEnabled(applicationContext)
+
+    // JT-HOOK: external-intent
+    // Opent een intent://-URI zoals een browser dat doet. Lukt dat niet, dan de app
+    // gewoon starten (Android TV-launcher eerst), en anders de browser_fallback_url.
+    private fun jtOpenIntentUri(uri: String): Boolean {
+        val intent = try {
+            Intent.parseUri(uri, Intent.URI_INTENT_SCHEME)
+        } catch (e: Exception) {
+            Log.w(JT_TAG, "Ongeldige intent-URI: $uri", e)
+            return false
+        }
+        intent.selector = null
+        intent.component = null
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        if (jtStart(intent)) return true
+
+        val pkg = intent.`package`
+        if (pkg != null) {
+            val launch = packageManager.getLeanbackLaunchIntentForPackage(pkg)
+                ?: packageManager.getLaunchIntentForPackage(pkg)
+            if (launch != null) {
+                launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                if (jtStart(launch)) return true
+            }
+        }
+
+        val fallback = intent.getStringExtra("browser_fallback_url")
+        if (fallback != null) {
+            val view = Intent(Intent.ACTION_VIEW, fallback.toUri()).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            if (jtStart(view)) return true
+        }
+        return false
+    }
+
+    private fun jtStart(intent: Intent): Boolean = try {
+        startActivity(intent)
+        true
+    } catch (e: Exception) {
+        Log.i(JT_TAG, "Kon ${intent} niet starten: ${e.message}")
+        false
+    }
+
+    companion object {
+        private const val JT_INTENT_CHANNEL = "be.jt.streaming/intent"
+        private const val JT_TAG = "JtIntent"
+    }
 }
