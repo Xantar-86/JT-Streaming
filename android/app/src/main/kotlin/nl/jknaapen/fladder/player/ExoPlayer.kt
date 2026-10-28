@@ -122,8 +122,17 @@ internal fun ExoPlayer(
             )
     }
 
-    fun updatePlaybackState() {
-        videoHost.setPlaybackState(
+    // JT-HOOK: pause-stable-position (WP2.12) - see JtPlaybackStateGate
+    val stateGate = remember { JtPlaybackStateGate() }
+
+    fun publishPlaybackState(state: PlaybackState, forced: Boolean) {
+        // Only the player registered with VideoPlayerImplementation may drive the controls.
+        if (VideoPlayerObject.implementation.player !== exoPlayer) return
+        if (stateGate.accept(state, forced)) videoHost.setPlaybackState(state)
+    }
+
+    fun updatePlaybackState(forced: Boolean = false) {
+        publishPlaybackState(
             PlaybackState(
                 position = exoPlayer.currentPosition,
                 buffered = exoPlayer.bufferedPosition,
@@ -132,7 +141,8 @@ internal fun ExoPlayer(
                 buffering = exoPlayer.playbackState == Player.STATE_BUFFERING,
                 completed = exoPlayer.playbackState == Player.STATE_ENDED,
                 failed = exoPlayer.playbackState == Player.STATE_IDLE
-            )
+            ),
+            forced
         )
     }
 
@@ -159,7 +169,7 @@ internal fun ExoPlayer(
             }
 
             override fun onPlaybackStateChanged(playbackState: Int) {
-                videoHost.setPlaybackState(
+                publishPlaybackState(
                     PlaybackState(
                         position = exoPlayer.currentPosition,
                         buffered = exoPlayer.bufferedPosition,
@@ -168,13 +178,24 @@ internal fun ExoPlayer(
                         buffering = playbackState == Player.STATE_BUFFERING,
                         completed = playbackState == Player.STATE_ENDED,
                         failed = playbackState == Player.STATE_IDLE
-                    )
+                    ),
+                    forced = true
                 )
             }
 
             override fun onEvents(player: Player, events: Player.Events) {
                 super.onEvents(player, events)
-                updatePlaybackState()
+                // JT-HOOK: pause-stable-position (WP2.12) - loading/track/buffer events
+                // no longer push a new position, only real position-relevant changes.
+                if (events.containsAny(
+                        Player.EVENT_POSITION_DISCONTINUITY,
+                        Player.EVENT_IS_PLAYING_CHANGED,
+                        Player.EVENT_TIMELINE_CHANGED,
+                        Player.EVENT_PLAYBACK_STATE_CHANGED,
+                    )
+                ) {
+                    updatePlaybackState(forced = true)
+                }
             }
 
             override fun onTracksChanged(tracks: Tracks) {
