@@ -100,6 +100,19 @@ android {
         }
     }
 
+    // JT-HOOK: abi-version-code (WP2.14) - bij --split-per-abi: versionCode = 10 x build-number + ABI-cijfer
+    // (armeabi-v7a 1, arm64-v8a 2, x86_64 4) i.p.v. Flutters 1000 x ABI + build-number. Zo ligt elke
+    // ABI-apk hoger dan de universele apk met hetzelfde build-number en volgt elke nieuwe versie de
+    // vorige op. Draait na Flutters configureEach (die plugin is eerst toegepast), dus wint deze.
+    applicationVariants.configureEach { variant ->
+        variant.outputs.each { output ->
+            def abiDigit = ["armeabi-v7a": 1, "arm64-v8a": 2, "x86_64": 4][output.getFilter(com.android.build.OutputFile.ABI)]
+            if (abiDigit != null) {
+                output.versionCodeOverride = variant.versionCode * 10 + abiDigit
+            }
+        }
+    }
+
     flavorDimensions "default"
     productFlavors {
         development {

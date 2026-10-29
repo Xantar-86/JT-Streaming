@@ -223,7 +223,8 @@ flutter:
     - assets/fonts/
     - config/
     - assets/mp-font.ttf
-    - assets/
+    # JT-HOOK: asset-trim (WP2.14) - niet heel assets/: de .afphoto/.afdesign-bronbestanden (3,5 MB) horen niet in de app
+    - assets/gradient.png
     - assets/jt/
 
   fonts:

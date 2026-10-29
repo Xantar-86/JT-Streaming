@@ -293,13 +293,25 @@ pwsh tool/jt/build-android.ps1 -Clean -JtVersion 5.1 -OutDir C:\paperclip\forge\
 ```
 
 - Zelfde Flutter-, lockfile- en icoonregels als de webbuild. Versie = `0.11.1-jt.<JtVersion>`,
-  **versionCode = 1000 × jt-nummer + subnummer** (`jt.5.1` = 5001, `jt.6` = 6000; of `-VersionCode N`).
-  Android installeert een update alleen over de bestaande app als de versionCode hoger is én dezelfde
-  sleutel signeert.
-- Uitvoer: `build/app/outputs/flutter-apk/app-production-release.apk`, gekopieerd naar
-  `<OutDir>/JT-Streaming-AndroidTV-<versie>.apk` + `.sha256` (standaard `dist/`). Exitcode ≠ 0 bij elke fout.
-- **Universele apk** (geen `--split-per-abi`): `armeabi-v7a` (Xiaomi Mi Box S, 32-bit userland),
-  `arm64-v8a` (Google TV Streamer 4K) en `x86_64`. Het script faalt als `armeabi-v7a` of `arm64-v8a` ontbreekt.
+  build-number = 1000 × jt-nummer + subnummer (`jt.5.1` = 5001, `jt.6.6` = 6006; of `-VersionCode N`).
+- **Eén apk per ABI** (sinds jt.6.6; `--split-per-abi --target-platform android-arm,android-arm64`):
+  `JT-Streaming-AndroidTV-<versie>-armeabi-v7a.apk` (Xiaomi Mi Box S: Android 9, 32-bit userland) en
+  `JT-Streaming-AndroidTV-<versie>-arm64-v8a.apk` (Google TV Streamer en andere 64-bit toestellen).
+  Welke een toestel nodig heeft: `adb shell getprop ro.product.cpu.abilist` (eerste waarde). Een arm64-apk
+  op een 32-bit box geeft "App niet geïnstalleerd". x86_64 (alleen de emulator) zit er niet meer bij.
+  **versionCode = 10 × build-number + 1 (armeabi-v7a) of + 2 (arm64-v8a)** (`jt.6.6` = 60061 / 60062),
+  gezet door `// JT-HOOK: abi-version-code` in `android/app/build.gradle`. Android installeert een update
+  alleen over de bestaande app als de versionCode hoger is én dezelfde sleutel signeert; een ABI-apk ligt
+  dus boven elke universele apk t/m jt.6.5 (6005). Ga daarna niet terug naar een universele apk (lager getal).
+- `-Universal`: de oude universele apk (`armeabi-v7a`, `arm64-v8a`, `x86_64`, ~222 MB, versionCode =
+  build-number), bv. voor de emulator.
+- Uitvoer: `build/app/outputs/flutter-apk/app-<abi>-production-release.apk`, gekopieerd naar `<OutDir>`
+  + `.sha256` per apk (standaard `dist/`). Exitcode ≠ 0 bij elke fout.
+- Native libraries staan ongecomprimeerd in de apk (AGP-standaard, `extractNativeLibs` niet gezet):
+  Android gebruikt ze rechtstreeks uit de apk, dus geïnstalleerd ≈ apk-grootte. `useLegacyPackaging`
+  zou de download kleiner maken maar de libs bij installatie uitpakken: meer plaats op de box, niet minder.
+- `pubspec.yaml` neemt van de map `assets/` alleen `gradient.png` mee (`# JT-HOOK: asset-trim`); de
+  Affinity-bronbestanden (`*.afphoto`, `*.afdesign`, 3,5 MB) zitten niet meer in apk, web en Windows.
 - **Signering**: release-keystore (RSA 4096, alias `jtstreaming`) als JSON
   `{storeBase64, storePassword, keyAlias, keyPassword}` uit `$env:JT_STREAMING_ANDROID_KEYSTORE`
   (company-secret `jt_streaming_android_keystore`), anders uit het bestand in
@@ -308,7 +320,7 @@ pwsh tool/jt/build-android.ps1 -Clean -JtVersion 5.1 -OutDir C:\paperclip\forge\
   de bouwgebruiker). Het script schrijft `android/app/key.properties` + `keystore.jks` (gitignored, het
   controleert dat) en wist ze na de bouw, ook bij een fout. Daarna controleert het met `apksigner` dat het
   certificaat exact dat van de keystore is (nooit de debug-sleutel) en met `aapt2 dump badging` package,
-  label, versie, leanback-launcher, banner, icoon, ABI's en "niet debuggable".
+  label, versie, versionCode, leanback-launcher, banner, icoon, ABI's (per apk precies één) en "niet debuggable".
   **Verlies de keystore niet**: zonder dezelfde sleutel kan een update niet over de bestaande app heen
   (eerst verwijderen = lokale app-instellingen kwijt).
 - Vereist op de bouwmachine (alles per gebruiker, geen admin): **JDK 17** (`$env:JAVA_HOME`, standaard

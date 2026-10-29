@@ -1,26 +1,33 @@
 <#
 .SYNOPSIS
-  Bouwt de gesigneerde JT-Streaming-apk voor Android TV (universeel: armeabi-v7a + arm64-v8a) in één opdracht.
+  Bouwt de gesigneerde JT-Streaming-apk's voor Android TV (één per ABI: armeabi-v7a en arm64-v8a) in één opdracht.
 
 .DESCRIPTION
-  pwsh tool/jt/build-android.ps1 [-Clean] [-JtVersion 5.1] [-VersionCode N] [-OutDir <map>]
+  pwsh tool/jt/build-android.ps1 [-Clean] [-JtVersion 5.1] [-VersionCode N] [-OutDir <map>] [-Universal]
 
   1. Controleert de Flutter-versie tegen .fvmrc, zoekt JDK 17 en de Android SDK.
   2. Noteert `git describe --tags --always --dirty` (waarschuwt bij een vuile werkmap).
   3. Haalt de release-keystore op (zie *Keystore*) en schrijft android/app/keystore.jks +
      android/app/key.properties. Beide zijn gitignored en worden na de bouw altijd gewist.
   4. -Clean: flutter clean. Daarna flutter pub get --enforce-lockfile en tool/jt/generate-icons.ps1.
-  5. flutter build apk --release --flavor production --build-name <basis>-jt.<JtVersion> --build-number <VersionCode>.
-  6. Controle, faalt bij elke afwijking:
+  5. flutter build apk --release --flavor production --build-name <basis>-jt.<JtVersion> --build-number <VersionCode>
+     --split-per-abi --target-platform android-arm,android-arm64 (zonder de laatste twee met -Universal).
+  6. Controle per apk, faalt bij elke afwijking:
      - apksigner: certificaat-SHA-256 = dat van de release-keystore (nooit de debug-sleutel);
-     - aapt2 badging: package be.thoelen.jtstreaming, label JT-Streaming, versionName, leanback-launcher,
-       banner, icoon, native code armeabi-v7a én arm64-v8a, niet debuggable.
-  7. Kopie naar <OutDir>/JT-Streaming-AndroidTV-<versie>.apk + .sha256.
+     - aapt2 badging: package be.thoelen.jtstreaming, label JT-Streaming, versionName, versionCode,
+       leanback-launcher, banner, icoon, native code precies die ABI (universeel: minstens
+       armeabi-v7a en arm64-v8a), niet debuggable.
+  7. Kopie naar <OutDir>/JT-Streaming-AndroidTV-<versie>-<abi>.apk + .sha256
+     (universeel: JT-Streaming-AndroidTV-<versie>.apk).
   Exitcode 0 bij succes, 1 bij elke fout.
 
-  versionCode = 1000 x jt-nummer + subnummer (jt.5.1 = 5001, jt.6 = 6000), tenzij -VersionCode.
+  build-number = 1000 x jt-nummer + subnummer (jt.5.1 = 5001, jt.6 = 6000), tenzij -VersionCode.
+  versionCode per ABI-apk = 10 x build-number + 1 (armeabi-v7a) of + 2 (arm64-v8a), zie
+  abi-version-code in android/app/build.gradle (jt.6.6: 60061 en 60062, de universele jt.6.5 was 6005).
+  Universeel: versionCode = build-number.
   Android installeert een update alleen over een bestaande installatie als de versionCode hoger is
-  en dezelfde sleutel signeert.
+  en dezelfde sleutel signeert. Na een ABI-apk kan een universele apk met een lager getal niet meer
+  als update: blijf bij ABI-apk's.
 
   Keystore: JSON {storeBase64, storePassword, keyAlias, keyPassword}, uit de omgevingsvariabele
   JT_STREAMING_ANDROID_KEYSTORE (company-secret), anders uit het bestand in
@@ -39,7 +46,8 @@ param(
   [string]$JtVersion = '5.1',
   [ValidateRange(1, 2100000000)]
   [int]$VersionCode = 0,
-  [string]$OutDir
+  [string]$OutDir,
+  [switch]$Universal
 )
 
 $ErrorActionPreference = 'Stop'
@@ -176,59 +184,79 @@ try {
   & pwsh -NoProfile -File (Join-Path $PSScriptRoot 'generate-icons.ps1')
   if ($LASTEXITCODE -ne 0) { throw "generate-icons.ps1 faalde (exit $LASTEXITCODE)" }
 
-  # 5. Bouw (universele apk: zonder --split-per-abi bevat ze alle ABI's)
+  # 5. Bouw. Standaard één apk per ABI (--split-per-abi, alleen ARM: x86_64 is enkel voor de emulator);
+  #    -Universal: één apk met armeabi-v7a, arm64-v8a en x86_64 (zoals t/m jt.6.5).
+  $buildArgs = @('build', 'apk', '--release', '--flavor', 'production',
+    '--build-name', $buildName, '--build-number', "$VersionCode")
+  if (-not $Universal) { $buildArgs += @('--split-per-abi', '--target-platform', 'android-arm,android-arm64') }
   try {
-    Invoke-Native $flutter @('build', 'apk', '--release', '--flavor', 'production',
-      '--build-name', $buildName, '--build-number', "$VersionCode")
+    Invoke-Native $flutter $buildArgs
   } finally {
     Remove-SigningFiles
   }
-  $apk = Join-Path $repo 'build\app\outputs\flutter-apk\app-production-release.apk'
-  if (-not (Test-Path $apk)) { throw "apk ontbreekt na de bouw: $apk" }
-
-  # 6a. Signering: alleen de release-sleutel
-  $certOut = (& $apksigner verify --verbose --print-certs $apk 2>&1) -join "`n"
-  if ($LASTEXITCODE -ne 0) { throw "apksigner verify faalde:`n$certOut" }
-  if ($certOut -match 'Android Debug') { throw 'apk is met de debug-sleutel gesigneerd' }
-  $signers = [regex]::Matches($certOut, 'certificate SHA-256 digest:\s*([0-9a-f]{64})') | ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique
-  if (@($signers).Count -ne 1 -or $signers -ne $expectedCert) { throw "Onverwacht certificaat: $($signers -join ', ') (verwacht $expectedCert)" }
-  if ($certOut -notmatch 'Verified using v2 scheme \(APK Signature Scheme v2\): true') { throw 'Geen v2-handtekening' }
-  Write-Host "Signering OK (release-certificaat $expectedCert)"
-
-  # 6b. Inhoud
-  $badging = (& $aapt2 dump badging $apk 2>&1) -join "`n"
-  if ($LASTEXITCODE -ne 0) { throw "aapt2 dump badging faalde:`n$badging" }
-  $checks = [ordered]@{
-    "package $expectedPackage"     = "package: name='$([regex]::Escape($expectedPackage))'"
-    "versionName $buildName"       = "versionName='$([regex]::Escape($buildName))'"
-    "versionCode $VersionCode"     = "versionCode='$VersionCode'"
-    "label $expectedLabel"         = "application-label:'$([regex]::Escape($expectedLabel))'"
-    'leanback-launcher'            = 'leanback-launchable-activity:'
-    'banner'                       = "application: .*banner='[^']+'"
-    'icoon'                        = "application: .*icon='[^']+'"
+  $outputs = Join-Path $repo 'build\app\outputs\flutter-apk'
+  # Per apk: bronbestand, naam in OutDir, verwachte ABI's en versionCode (zie abi-version-code in build.gradle).
+  $apks = if ($Universal) {
+    , @{ File = 'app-production-release.apk'; Name = "JT-Streaming-AndroidTV-$buildName.apk"; Abis = $requiredAbis; Code = $VersionCode }
+  } else {
+    @{ File = 'app-armeabi-v7a-production-release.apk'; Name = "JT-Streaming-AndroidTV-$buildName-armeabi-v7a.apk"; Abis = @('armeabi-v7a'); Code = 10 * $VersionCode + 1 }
+    @{ File = 'app-arm64-v8a-production-release.apk'; Name = "JT-Streaming-AndroidTV-$buildName-arm64-v8a.apk"; Abis = @('arm64-v8a'); Code = 10 * $VersionCode + 2 }
   }
-  foreach ($c in $checks.GetEnumerator()) {
-    if ($badging -notmatch $c.Value) { throw "Badging-controle faalt: $($c.Key)" }
-  }
-  if ($badging -match 'application-debuggable') { throw 'apk is debuggable' }
-  $nativeCode = [regex]::Match($badging, "native-code:(.*)").Groups[1].Value
-  foreach ($abi in $requiredAbis) {
-    if ($nativeCode -notmatch "'$abi'") { throw "ABI $abi ontbreekt (native-code:$nativeCode)" }
-  }
-  Write-Host "Badging OK: $expectedPackage, $expectedLabel, $buildName, leanback, banner, ABI's$nativeCode"
 
-  # 7. Kopie + sha256
   New-Item -ItemType Directory -Force $OutDir | Out-Null
   if ($OutDir -eq (Join-Path $repo 'dist')) { Set-Content -Encoding ascii -LiteralPath (Join-Path $OutDir '.gitignore') -Value '*' }
-  $name = "JT-Streaming-AndroidTV-$buildName.apk"
-  $target = Join-Path $OutDir $name
-  Copy-Item -Force $apk $target
-  $hash = (Get-FileHash -Algorithm SHA256 $target).Hash.ToLowerInvariant()
-  Set-Content -Encoding ascii -NoNewline -LiteralPath "$target.sha256" -Value "$hash  $name`n"
+  $results = foreach ($a in $apks) {
+    $apk = Join-Path $outputs $a.File
+    if (-not (Test-Path $apk)) { throw "apk ontbreekt na de bouw: $apk" }
+    Write-Host ''
+    Write-Host "== $($a.File)"
+
+    # 6a. Signering: alleen de release-sleutel
+    $certOut = (& $apksigner verify --verbose --print-certs $apk 2>&1) -join "`n"
+    if ($LASTEXITCODE -ne 0) { throw "apksigner verify faalde:`n$certOut" }
+    if ($certOut -match 'Android Debug') { throw 'apk is met de debug-sleutel gesigneerd' }
+    $signers = [regex]::Matches($certOut, 'certificate SHA-256 digest:\s*([0-9a-f]{64})') | ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique
+    if (@($signers).Count -ne 1 -or $signers -ne $expectedCert) { throw "Onverwacht certificaat: $($signers -join ', ') (verwacht $expectedCert)" }
+    if ($certOut -notmatch 'Verified using v2 scheme \(APK Signature Scheme v2\): true') { throw 'Geen v2-handtekening' }
+    Write-Host "Signering OK (release-certificaat $expectedCert)"
+
+    # 6b. Inhoud
+    $badging = (& $aapt2 dump badging $apk 2>&1) -join "`n"
+    if ($LASTEXITCODE -ne 0) { throw "aapt2 dump badging faalde:`n$badging" }
+    $checks = [ordered]@{
+      "package $expectedPackage"     = "package: name='$([regex]::Escape($expectedPackage))'"
+      "versionName $buildName"       = "versionName='$([regex]::Escape($buildName))'"
+      "versionCode $($a.Code)"       = "versionCode='$($a.Code)'"
+      "label $expectedLabel"         = "application-label:'$([regex]::Escape($expectedLabel))'"
+      'leanback-launcher'            = 'leanback-launchable-activity:'
+      'banner'                       = "application: .*banner='[^']+'"
+      'icoon'                        = "application: .*icon='[^']+'"
+    }
+    foreach ($c in $checks.GetEnumerator()) {
+      if ($badging -notmatch $c.Value) { throw "Badging-controle faalt: $($c.Key)" }
+    }
+    if ($badging -match 'application-debuggable') { throw 'apk is debuggable' }
+    $nativeCode = [regex]::Match($badging, "native-code:(.*)").Groups[1].Value
+    foreach ($abi in $a.Abis) {
+      if ($nativeCode -notmatch "'$abi'") { throw "ABI $abi ontbreekt (native-code:$nativeCode)" }
+    }
+    $found = @([regex]::Matches($nativeCode, "'([^']+)'") | ForEach-Object { $_.Groups[1].Value })
+    if ($found.Count -ne $a.Abis.Count) { throw "Onverwachte ABI's (native-code:$nativeCode, verwacht $($a.Abis -join ', '))" }
+    Write-Host "Badging OK: $expectedPackage, $expectedLabel, $buildName, versionCode $($a.Code), leanback, banner, ABI's$nativeCode"
+
+    # 7. Kopie + sha256
+    $target = Join-Path $OutDir $a.Name
+    Copy-Item -Force $apk $target
+    $hash = (Get-FileHash -Algorithm SHA256 $target).Hash.ToLowerInvariant()
+    Set-Content -Encoding ascii -NoNewline -LiteralPath "$target.sha256" -Value "$hash  $($a.Name)`n"
+    [pscustomobject]@{ Target = $target; Hash = $hash; Code = $a.Code }
+  }
 
   Write-Host ''
-  Write-Host "OK: $target"
-  Write-Host "SHA-256: $hash"
+  foreach ($r in $results) {
+    Write-Host "OK: $($r.Target) (versionCode $($r.Code))"
+    Write-Host "SHA-256: $($r.Hash)"
+  }
   $exitCode = 0
 } catch {
   Write-Host "FOUT: $($_.Exception.Message)" -ForegroundColor Red
