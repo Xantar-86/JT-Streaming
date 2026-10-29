@@ -158,6 +158,25 @@ Wie nog een versie van vóór jt.6 open heeft, draait de oude service worker: da
 Bij het eerste herladen na de uitrol start de oude versie nog één keer; de nieuwe service worker neemt dan
 over en herlaadt het tabblad zelf (bewijs: `docs/wp2.8b-verslag.md` in de projectmap).
 
+### Offline-melding (connectivity-guard)
+
+Upstream toont "Offline" na één mislukte aanvraag op `/System/Info/Public` (timeout 2 s) of zodra het
+netwerktype niet vpn/ethernet/wifi/mobiel is. Op de Mi Box S (USB-ethernet) gaf dat valse meldingen.
+`lib/jt/net/jt_connectivity_guard.dart` beslist nu wanneer de app offline is; alle tijden en de drempel
+staan in `JtConnectivityConfig`:
+
+| Instelling | Standaard | Betekenis |
+|---|---|---|
+| `probeTimeout` | 8 s | timeout per aanvraag op `/System/Info/Public` |
+| `failuresBeforeOffline` | 3 | mislukte probes na elkaar voor "Offline" |
+| `retryDelay` | 5 s | wachttijd tussen die probes (status blijft intussen staan) |
+| `noneDebounce` | 3 s | na "geen netwerk": wachten, opnieuw lezen en proben |
+| `offlineReprobe` | 30 s | achtergrondprobe zolang de app offline is |
+
+Netwerktype `other` (USB-ethernet, onbekende adapter) telt als vaste verbinding. Hooks:
+`// JT-HOOK: connectivity-guard` in `lib/providers/connectivity_provider.dart` (2 regels).
+Tests: `test/jt/jt_connectivity_guard_test.dart`.
+
 ### Hooks in upstream-bestanden
 
 Elke plek waar een upstream-bestand naar `lib/jt/` verwijst, is gemarkeerd met `// JT-HOOK: <naam>`.
@@ -380,7 +399,7 @@ Per conflict:
 Daarna:
 
 ```powershell
-git grep -c "JT-HOOK" -- lib ":!lib/jt"   # verwacht: 51 regels in 25 bestanden (stand jt.6: gids-navigatie + web-update)
+git grep -c "JT-HOOK" -- lib ":!lib/jt"   # verwacht: 56 regels in 27 bestanden (stand jt.6.5: + connectivity-guard)
 git grep -c "JT-PATCH" -- third_party ":!*.md"   # verwacht: 9 regels in 2 bestanden (stand jt.3)
 flutter analyze
 flutter test

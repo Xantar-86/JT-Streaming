@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import 'package:fladder/jellyfin/jellyfin_open_api.swagger.dart';
+import 'package:fladder/jt/net/jt_connectivity_guard.dart';
 import 'package:fladder/providers/api_provider.dart';
 import 'package:fladder/providers/user_provider.dart';
 import 'package:fladder/services/local_network_permission.dart';
@@ -39,30 +40,35 @@ final localConnectionAvailableProvider = StateProvider<bool>((ref) => false);
 
 @Riverpod(keepAlive: true)
 class ConnectivityStatus extends _$ConnectivityStatus {
-  Timer? _debounceTimer;
-  int _probeId = 0;
-  Completer<void>? _probeCompleter;
+  // JT-HOOK: connectivity-guard. Wanneer de app offline is, beslist
+  // JtConnectivityGuard (lib/jt/net/): `other` = online, `none` met debounce,
+  // offline pas na meerdere mislukte probes, achtergrondprobe terwijl offline.
+  late JtConnectivityGuard _guard;
 
   @override
   ConnectionState build() {
+    _guard = JtConnectivityGuard(
+      probe: _probeReachability,
+      readHardware: () => Connectivity().checkConnectivity(),
+      onState: _updateState,
+    );
+
     ref.listen(
       userProvider.select((value) => value?.credentials.localUrl),
       (previous, next) {
         if (previous != next) {
-          checkConnectivity(immediate: true);
+          _guard.reprobe();
         }
       },
     );
 
     final subscription = Connectivity().onConnectivityChanged.listen((results) {
-      _handleHardwareChange(results);
+      _guard.onHardware(results);
     });
 
     ref.onDispose(() {
-      _debounceTimer?.cancel();
       subscription.cancel();
-      _probeId++;
-      _resolveProbe();
+      _guard.dispose();
     });
 
     checkConnectivity(immediate: true);
@@ -72,112 +78,52 @@ class ConnectivityStatus extends _$ConnectivityStatus {
 
   Future<void> checkConnectivity({bool immediate = false}) async {
     final results = await Connectivity().checkConnectivity();
-    _handleHardwareChange(results, immediate: immediate);
+    _guard.onHardware(results, immediate: immediate);
   }
 
-  Future<void> waitForProbe() async => _probeCompleter?.future;
+  Future<void> waitForProbe() => _guard.waitForProbe();
 
-  void _handleHardwareChange(List<ConnectivityResult> results, {bool immediate = false}) {
-    final hardwareState = _parseHardwareState(results);
+  Future<JtProbeResult> _probeReachability() async {
+    final user = ref.read(userProvider);
+    if (user == null) return JtProbeResult.skipped;
 
-    if (hardwareState == ConnectionState.offline) {
-      _debounceTimer?.cancel();
-      _probeId++;
-      _resolveProbe();
-      _updateState(ConnectionState.offline, isLocal: false);
-      return;
-    }
-
-    _queueProbe(hardwareState, immediate: immediate);
-  }
-
-  void _queueProbe(ConnectionState candidateState, {bool immediate = false}) {
-    _debounceTimer?.cancel();
-    final id = ++_probeId;
-    _probeCompleter ??= Completer<void>();
-
-    if (immediate) {
-      unawaited(_probeReachability(id, candidateState));
-    } else {
-      _debounceTimer = Timer(
-        const Duration(milliseconds: 500),
-        () => unawaited(_probeReachability(id, candidateState)),
-      );
-    }
-  }
-
-  Future<void> _probeReachability(int id, ConnectionState candidateState) async {
-    try {
-      final user = ref.read(userProvider);
-      if (user == null) return;
-
-      final localUrl = user.credentials.localUrl;
-      if (localUrl != null && localUrl.isNotEmpty) {
-        final permission = await checkLocalNetworkPermission();
-        if (permission == LocalNetworkPermissionStatus.granted) {
-          final localConnection = await fetchSystemInfoDynamic(normalizeUrl(localUrl));
-
-          if (_probeId != id) return;
-
-          if (localConnection?.id == user.credentials.serverId) {
-            _updateState(candidateState, isLocal: true);
-            return;
-          }
+    final localUrl = user.credentials.localUrl;
+    if (localUrl != null && localUrl.isNotEmpty) {
+      final permission = await checkLocalNetworkPermission();
+      if (permission == LocalNetworkPermissionStatus.granted) {
+        final localConnection = await fetchSystemInfoDynamic(normalizeUrl(localUrl));
+        if (localConnection?.id == user.credentials.serverId) {
+          return JtProbeResult.local;
         }
       }
+    }
 
-      if (_probeId != id) return;
-
-      final remoteUrl = user.credentials.url;
-      if (remoteUrl.isNotEmpty) {
-        final checkServer = await fetchSystemInfoDynamic(normalizeUrl(remoteUrl));
-
-        if (_probeId != id) return;
-
-        if (checkServer != null) {
-          _updateState(candidateState, isLocal: false);
-          return;
-        }
-      }
-
-      if (_probeId == id) {
-        _updateState(ConnectionState.offline, isLocal: false);
-      }
-    } finally {
-      if (_probeId == id) {
-        _resolveProbe();
+    final remoteUrl = user.credentials.url;
+    if (remoteUrl.isNotEmpty) {
+      final checkServer = await fetchSystemInfoDynamic(normalizeUrl(remoteUrl));
+      if (checkServer != null) {
+        return JtProbeResult.remote;
       }
     }
+
+    return JtProbeResult.unreachable;
   }
 
   void _updateState(ConnectionState newState, {required bool isLocal}) {
     ref.read(localConnectionAvailableProvider.notifier).state = isLocal;
     state = newState;
   }
-
-  void _resolveProbe() {
-    if (!(_probeCompleter?.isCompleted ?? true)) {
-      _probeCompleter?.complete();
-    }
-    _probeCompleter = null;
-  }
-
-  ConnectionState _parseHardwareState(List<ConnectivityResult> results) {
-    if (results.contains(ConnectivityResult.vpn)) return ConnectionState.vpn;
-    if (results.contains(ConnectivityResult.ethernet)) return ConnectionState.ethernet;
-    if (results.contains(ConnectivityResult.wifi)) return ConnectionState.wifi;
-    if (results.contains(ConnectivityResult.mobile)) return ConnectionState.mobile;
-    return ConnectionState.offline;
-  }
 }
 
-Future<PublicSystemInfo?> fetchSystemInfoDynamic(String baseUrl) async {
+Future<PublicSystemInfo?> fetchSystemInfoDynamic(String baseUrl, {http.Client? client}) async {
   if (baseUrl.isEmpty) return null;
   try {
     final uri = buildServerUriFromBase(baseUrl, pathSegments: const ['System', 'Info', 'Public']);
     if (uri == null) return null;
 
-    final response = await http.get(uri).timeout(const Duration(seconds: 2));
+    // JT-HOOK: connectivity-guard. 8 s i.p.v. 2 s: een trage TLS-handshake op
+    // de Mi Box S (tijdens afspelen, na stand-by) is geen offline server.
+    final response = await (client?.get(uri) ?? http.get(uri)).timeout(jtConnectivityConfig.probeTimeout);
 
     if (response.statusCode >= 200 && response.statusCode < 300) {
       return PublicSystemInfo.fromJson(jsonDecode(response.body));
