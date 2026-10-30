@@ -28,6 +28,34 @@ class JtProfilesScreen extends ConsumerStatefulWidget {
 
 class _JtProfilesScreenState extends ConsumerState<JtProfilesScreen> {
   bool busy = false;
+  final Map<String, FocusNode> _nodes = {};
+
+  FocusNode _node(String key) => _nodes.putIfAbsent(key, () => FocusNode(debugLabel: key));
+
+  static String _key(AccountModel a) => 'jt-profile-${a.credentials.serverId}-${a.id}';
+
+  @override
+  void didUpdateWidget(covariant JtProfilesScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Bij het opstarten bouwt de aanmeldpagina eerst zonder accounts (dan krijgt "Profiel toevoegen"
+    // de focus); zodra de profielen er zijn, gaat de focus naar het laatst gebruikte.
+    if (jtVisibleProfiles(oldWidget.accounts).isEmpty) {
+      final lastUsed = jtVisibleProfiles(widget.accounts).sorted((a, b) => a.lastUsed.compareTo(b.lastUsed)).lastOrNull;
+      if (lastUsed != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _node(_key(lastUsed)).requestFocus();
+        });
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    for (final node in _nodes.values) {
+      node.dispose();
+    }
+    super.dispose();
+  }
 
   Future<void> _run(Future<void> Function() action) async {
     if (busy) return;
@@ -93,7 +121,8 @@ class _JtProfilesScreenState extends ConsumerState<JtProfilesScreen> {
                               children: [
                                 for (final profile in profiles)
                                   JtProfileTile(
-                                    key: ValueKey('jt-profile-${profile.credentials.serverId}-${profile.id}'),
+                                    key: ValueKey(_key(profile)),
+                                    focusNode: _node(_key(profile)),
                                     size: avatar,
                                     label: profile.name,
                                     autofocus: lastUsed != null && profile.sameIdentity(lastUsed),

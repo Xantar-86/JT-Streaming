@@ -97,6 +97,22 @@ void main() {
       expect(_focusedTileKey(), 'jt-profile-srv-id-Jochen');
     });
 
+    testWidgets('start-up order (first empty, then the saved accounts): focus moves to the last used',
+        (tester) async {
+      final list = ValueNotifier<List<AccountModel>>([]);
+      await _pump(
+        tester,
+        ValueListenableBuilder<List<AccountModel>>(
+          valueListenable: list,
+          builder: (_, value, __) => JtProfilesScreen(accounts: value),
+        ),
+      );
+      expect(_focusedTileKey(), 'jt-profile-add');
+      list.value = accounts;
+      await tester.pumpAndSettle();
+      expect(_focusedTileKey(), 'jt-profile-srv-id-Lotte');
+    });
+
     testWidgets('no profiles yet: focus on "Profiel toevoegen"', (tester) async {
       await _pump(tester, JtProfilesScreen(accounts: [_account('forge-test')]));
       expect(_focusedTileKey(), 'jt-profile-add');
