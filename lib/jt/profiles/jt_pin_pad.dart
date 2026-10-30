@@ -175,8 +175,12 @@ class _JtPinPadDialogState extends State<JtPinPadDialog> {
     final locked = lockedUntil != null;
     final seconds = locked ? (lockedUntil.difference(DateTime.now()).inMilliseconds / 1000).ceil() : 0;
     final message = locked ? context.localized.jtPinLocked(seconds.toString()) : error;
-    final height = MediaQuery.sizeOf(context).height;
-    final keySize = (height / 9).clamp(44.0, 64.0);
+    final size = MediaQuery.sizeOf(context);
+    // Liggend en laag (tv 960x540, laptop): kop links, toetsen rechts. Anders onder elkaar.
+    final landscape = size.width >= 640 && size.height < 720 && size.width > size.height;
+    // Dialoogranden (2 x 24) + binnenmarge (20 + 16) + 3 rijafstanden van 8.
+    final available = size.height - 48 - 36 - 24 - (landscape ? 0 : 230);
+    final keySize = (available / 4).clamp(40.0, 64.0);
 
     Widget key(String label, {VoidCallback? onTap, IconData? icon, bool autofocus = false, String? semantics}) {
       return JtFocusRing(
@@ -204,88 +208,116 @@ class _JtPinPadDialogState extends State<JtPinPadDialog> {
       ['7', '8', '9'],
     ];
 
+    final header = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (widget.header != null) ...[widget.header!, const SizedBox(height: 8)],
+        Text(widget.title, textAlign: TextAlign.center, style: theme.textTheme.titleLarge),
+        const SizedBox(height: 16),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: List.generate(JtPin.length, (i) {
+            final filled = i < entered.length;
+            return AnimatedContainer(
+              duration: const Duration(milliseconds: 120),
+              margin: const EdgeInsets.symmetric(horizontal: 8),
+              width: 18,
+              height: 18,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: filled ? scheme.primary : Colors.transparent,
+                border: Border.all(color: filled ? scheme.primary : scheme.onSurfaceVariant, width: 2),
+              ),
+            );
+          }),
+        ),
+        SizedBox(
+          height: 44,
+          child: Center(
+            child: message == null
+                ? null
+                : Text(
+                    message,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    style: theme.textTheme.bodyMedium?.copyWith(color: scheme.error),
+                  ),
+          ),
+        ),
+      ],
+    );
+
+    final keypad = FocusTraversalGroup(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        spacing: 8,
+        children: [
+          for (final row in rows)
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              spacing: 16,
+              children: [
+                for (final d in row) key(d, onTap: () => _add(d), autofocus: d == '1'),
+              ],
+            ),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            spacing: 16,
+            children: [
+              key('', icon: IconsaxPlusLinear.close_circle, semantics: context.localized.cancel,
+                  onTap: () => Navigator.of(context).pop(JtPinPadOutcome.cancelled)),
+              key('0', onTap: () => _add('0')),
+              key('', icon: IconsaxPlusLinear.arrow_left_1, semantics: context.localized.jtPinBackspace,
+                  onTap: _backspace),
+            ],
+          ),
+        ],
+      ),
+    );
+
+    final forgot = widget.showForgot
+        ? JtFocusRing(
+            child: TextButton(
+              onPressed: busy ? null : () => Navigator.of(context).pop(JtPinPadOutcome.forgotten),
+              child: Text(context.localized.jtPinForgot, textAlign: TextAlign.center),
+            ),
+          )
+        : null;
+
     return Focus(
+      // Alleen doorgeefluik voor cijfertoetsen; de focus zelf hoort op het toetsenblok.
+      canRequestFocus: false,
+      skipTraversal: true,
       onKeyEvent: _onKey,
       child: Shortcuts(
         shortcuts: jtProfileArrowShortcuts,
         child: Dialog(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
+            constraints: BoxConstraints(maxWidth: landscape ? 760 : 420),
             child: SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (widget.header != null) ...[widget.header!, const SizedBox(height: 8)],
-                  Text(widget.title, textAlign: TextAlign.center, style: theme.textTheme.titleLarge),
-                  const SizedBox(height: 16),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: List.generate(JtPin.length, (i) {
-                      final filled = i < entered.length;
-                      return AnimatedContainer(
-                        duration: const Duration(milliseconds: 120),
-                        margin: const EdgeInsets.symmetric(horizontal: 8),
-                        width: 18,
-                        height: 18,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: filled ? scheme.primary : Colors.transparent,
-                          border: Border.all(color: filled ? scheme.primary : scheme.onSurfaceVariant, width: 2),
-                        ),
-                      );
-                    }),
-                  ),
-                  SizedBox(
-                    height: 36,
-                    child: Center(
-                      child: message == null
-                          ? null
-                          : Text(
-                              message,
-                              textAlign: TextAlign.center,
-                              style: theme.textTheme.bodyMedium?.copyWith(color: scheme.error),
-                            ),
-                    ),
-                  ),
-                  FocusTraversalGroup(
-                    child: Column(
+              child: landscape
+                  ? Row(
                       mainAxisSize: MainAxisSize.min,
-                      spacing: 8,
+                      spacing: 32,
                       children: [
-                        for (final row in rows)
-                          Row(
+                        Flexible(
+                          child: Column(
                             mainAxisSize: MainAxisSize.min,
-                            spacing: 16,
-                            children: [
-                              for (final d in row) key(d, onTap: () => _add(d), autofocus: d == '1'),
-                            ],
+                            children: [header, if (forgot != null) forgot],
                           ),
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          spacing: 16,
-                          children: [
-                            key('', icon: IconsaxPlusLinear.close_circle, semantics: context.localized.cancel,
-                                onTap: () => Navigator.of(context).pop(JtPinPadOutcome.cancelled)),
-                            key('0', onTap: () => _add('0')),
-                            key('', icon: IconsaxPlusLinear.arrow_left_1, semantics: context.localized.jtPinBackspace,
-                                onTap: _backspace),
-                          ],
                         ),
+                        keypad,
+                      ],
+                    )
+                  : Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        header,
+                        keypad,
+                        if (forgot != null) ...[const SizedBox(height: 12), forgot],
                       ],
                     ),
-                  ),
-                  if (widget.showForgot) ...[
-                    const SizedBox(height: 12),
-                    JtFocusRing(
-                      child: TextButton(
-                        onPressed: busy ? null : () => Navigator.of(context).pop(JtPinPadOutcome.forgotten),
-                        child: Text(context.localized.jtPinForgot),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
             ),
           ),
         ),

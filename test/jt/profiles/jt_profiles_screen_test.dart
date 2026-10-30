@@ -147,6 +147,7 @@ void main() {
             onPressed: () async => outcome = await showJtPinPad(
               context,
               title: 'Pincode van Lotte',
+              header: const SizedBox.square(dimension: 72), // zoals JtProfileAvatar in jt_profile_flow
               check: check,
               lockedUntil: lockedUntil,
               showForgot: true,
@@ -249,10 +250,21 @@ void main() {
       expect(outcome?.pin, isNull);
     });
 
-    testWidgets('fits a 1080p TV (960x540 logical) without overflow', (tester) async {
-      await open(tester, size: const Size(960, 540));
-      expect(tester.takeException(), isNull);
-      expect(find.text('0'), findsOneWidget);
-    });
+    for (final size in const [Size(960, 540), Size(1280, 800), Size(1920, 1080), Size(400, 820)]) {
+      testWidgets('every key and "vergeten" fully on screen at ${size.width.toInt()}x${size.height.toInt()}',
+          (tester) async {
+        await open(tester, size: size);
+        expect(tester.takeException(), isNull);
+        final screen = Offset.zero & size;
+        for (final label in ['1', '3', '0', '9']) {
+          final rect = tester.getRect(find.text(label));
+          expect(screen.contains(rect.topLeft) && screen.contains(rect.bottomRight), isTrue, reason: '$label $rect');
+        }
+        final forgot = tester.getRect(find.textContaining('Pincode vergeten?'));
+        expect(forgot.bottom <= size.height && forgot.top >= 0, isTrue, reason: '$forgot');
+        final backspace = tester.getRect(find.bySemanticsLabel('Wissen'));
+        expect(backspace.bottom <= size.height, isTrue, reason: '$backspace');
+      });
+    }
   });
 }
