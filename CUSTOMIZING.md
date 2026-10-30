@@ -177,6 +177,35 @@ Netwerktype `other` (USB-ethernet, onbekende adapter) telt als vaste verbinding.
 `// JT-HOOK: connectivity-guard` in `lib/providers/connectivity_provider.dart` (2 regels).
 Tests: `test/jt/jt_connectivity_guard_test.dart`.
 
+### Profielen, pincode en vaste server (WP3.1)
+
+Bij elke koude start toont de app "Wie kijkt er?" (`lib/jt/profiles/jt_profiles_screen.dart`): de profielen
+die op dit toestel al eens ingelogd zijn, "Profiel toevoegen" en "Profielen beheren". "Wissel van profiel"
+staat in de zijbalk en de lade onder de gebruikersavatar.
+
+| Wat | Waar |
+|---|---|
+| Vaste server (standaard `https://tv.fam-thoelen.be`) | `JtDefaults.serverUrl` in `lib/jt/jt_defaults.dart`. Volgorde: eigen adres van het toestel ("Profielen beheren > Geavanceerd") > `baseUrl` uit `config/config.json` (web-deploy) > `serverUrl` |
+| Ook met autoLogin altijd "Wie kijkt er?" | `JtDefaults.chooseProfileOnStart` (`false` = upstream: meteen het laatste account) |
+| Profielscherm uit (upstream-raster terug) | `jtProfilesEnabled` in `jt_profiles_screen.dart` |
+| Nooit getoonde profielen | `jtHiddenProfiles` in `lib/jt/profiles/jt_profile_flow.dart` (nu `forge-test`) |
+| Pincode: lengte, iteraties, 5 fouten / 30 s | `JtPin` en `JtPinLockout` in `lib/jt/profiles/jt_pin.dart` |
+
+De pincode zelf wordt nergens bewaard. Op de server staat in de DisplayPreferences van de gebruiker
+(id en client `jt-streaming`, sleutel `pinHash`) een gezouten PBKDF2-HMAC-SHA256-hash
+`v1$<iteraties>$<zout>$<hash>`; lege waarde = geen pincode (Jellyfin wist geen sleutels). Elk toestel leest
+die met het token van het profiel zelf, dus dezelfde code geldt overal. Lokaal blijven alleen een kopie
+van de hash (voor als de server even weg is) en de teller van foute pogingen. Pincode of wachtwoord vergeten:
+"Pincode vergeten?" logt opnieuw in met het Jellyfin-wachtwoord (nieuw token, zelfde toestel-id).
+Let op: 4 cijfers zijn 10 000 mogelijkheden; wie de DisplayPreferences kan lezen (de gebruiker zelf,
+Jellyfin-beheerders) kan de code terugrekenen. Het is een gezinsslot, geen beveiliging van het account.
+
+De app vraagt nooit de gebruikerslijst op (`/Users/Public`); de server wordt pas aangesproken bij het
+kiezen of toevoegen van een profiel. Hooks: `// JT-HOOK: profiles` in `auth_provider.dart` (4),
+`splash_screen.dart`, `login_screen.dart` (2), `app_bootstrap.dart`, `side_navigation_bar.dart`,
+`navigation_drawer.dart`. Tests: `test/jt/profiles/` (de live-proef draait alleen met
+`JELLYFIN_FORGE_TEST`).
+
 ### Hooks in upstream-bestanden
 
 Elke plek waar een upstream-bestand naar `lib/jt/` verwijst, is gemarkeerd met `// JT-HOOK: <naam>`.
@@ -411,7 +440,7 @@ Per conflict:
 Daarna:
 
 ```powershell
-git grep -c "JT-HOOK" -- lib ":!lib/jt"   # verwacht: 56 regels in 27 bestanden (stand jt.6.5: + connectivity-guard)
+git grep -c "JT-HOOK" -- lib ":!lib/jt"   # verwacht: 66 regels in 31 bestanden (stand jt.6.7: + profiles)
 git grep -c "JT-PATCH" -- third_party ":!*.md"   # verwacht: 9 regels in 2 bestanden (stand jt.3)
 flutter analyze
 flutter test

@@ -5,6 +5,7 @@ import 'package:auto_route/auto_route.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:iconsax_plus/iconsax_plus.dart';
 
+import 'package:fladder/jt/profiles/jt_switch_profile_button.dart';
 import 'package:fladder/models/view_model.dart';
 import 'package:fladder/routes/auto_router.gr.dart';
 import 'package:fladder/util/adaptive_layout/adaptive_layout.dart';
@@ -83,6 +84,7 @@ class NestedNavigationDrawer extends ConsumerWidget {
             }
           },
         ),
+        const JtSwitchProfileButton(expanded: true), // JT-HOOK: profiles
         if (AdaptiveLayout.of(context).isDesktop || kIsWeb) const SizedBox(height: 8),
       ],
     );

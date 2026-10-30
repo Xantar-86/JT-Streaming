@@ -10,6 +10,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:fladder/jt/jt_brand.dart';
+import 'package:fladder/jt/jt_defaults.dart';
 import 'package:fladder/models/settings/arguments_model.dart';
 import 'package:fladder/providers/crash_log_provider.dart';
 import 'package:fladder/src/video_player_helper.g.dart';
@@ -60,6 +61,7 @@ Future<AppBootstrapResult> bootstrapApplication(List<String> args) async {
   }
 
   final sharedPreferences = await SharedPreferences.getInstance();
+  JtDefaults.applyServer(sharedPreferences); // JT-HOOK: profiles (vaste server)
   final packageInfo = await PackageInfo.fromPlatform();
 
   var applicationDirectory = Directory('');

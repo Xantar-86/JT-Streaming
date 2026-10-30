@@ -4,6 +4,7 @@ import 'package:auto_route/auto_route.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:iconsax_plus/iconsax_plus.dart';
 
+import 'package:fladder/jt/profiles/jt_profiles_screen.dart';
 import 'package:fladder/jt/widgets/jt_login_background.dart';
 import 'package:fladder/models/account_model.dart';
 import 'package:fladder/models/login_screen_model.dart';
@@ -77,6 +78,7 @@ class _LoginPageState extends ConsumerState<LoginScreen> {
           extendBody: true,
           extendBodyBehindAppBar: true,
           floatingActionButton: switch (screen) {
+            LoginScreenType.users when jtProfilesEnabled => null, // JT-HOOK: profiles
             LoginScreenType.users => Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 spacing: 16,
@@ -101,7 +103,10 @@ class _LoginPageState extends ConsumerState<LoginScreen> {
               ),
             _ => null,
           },
-          body: JtLoginBackground( // JT-HOOK: login-background
+          // JT-HOOK: profiles - "Wie kijkt er?" in plaats van het upstream gebruikersraster.
+          body: screen == LoginScreenType.users && jtProfilesEnabled && !loggingIn
+              ? JtProfilesScreen(accounts: accounts)
+              : JtLoginBackground( // JT-HOOK: login-background
             child: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(

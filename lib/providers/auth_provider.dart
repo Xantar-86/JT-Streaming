@@ -49,7 +49,8 @@ class AuthNotifier extends StateNotifier<LoginScreenModel> {
       state = state.copyWith(
         hasBaseUrl: true,
       );
-      if (url != null) {
+      // JT-HOOK: profiles - geen serververkeer op "Wie kijkt er?"; pas bij "Profiel toevoegen" (addNewUser).
+      if (url != null && currentAccounts.isEmpty) {
         await setServer(url);
       }
     }
@@ -67,7 +68,8 @@ class AuthNotifier extends StateNotifier<LoginScreenModel> {
         serverLoginModel: newLoginModel,
         loading: true,
       );
-      final publicUsers = (await getPublicUsers())?.body ?? [];
+      // JT-HOOK: profiles - nooit de gebruikerslijst opvragen (alle Jellyfin-gebruikers zijn verborgen).
+      final publicUsers = <AccountModel>[];
       final quickConnectStatus = (await api.quickConnectEnabled()).body ?? false;
       final branding = await api.getBranding();
       final serverResponse = await api.systemInfoPublicGet();
@@ -223,6 +225,16 @@ class AuthNotifier extends StateNotifier<LoginScreenModel> {
     state = state.copyWith(
       screen: LoginScreenType.login,
     );
+    // JT-HOOK: profiles - de vaste server pas nu ophalen (zie initModel).
+    final url = FladderConfig.baseUrl;
+    if (state.hasBaseUrl && state.serverLoginModel == null && url != null) {
+      setServer(url);
+    }
+  }
+
+  /// JT-HOOK: profiles - ander serveradres ingesteld onder "Profielen beheren > Geavanceerd".
+  void jtServerChanged() {
+    state = state.copyWith(hasBaseUrl: FladderConfig.baseUrl != null, serverLoginModel: null);
   }
 
   void goUserSelect() {

@@ -4,6 +4,7 @@ import 'package:auto_route/auto_route.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:iconsax_plus/iconsax_plus.dart';
 
+import 'package:fladder/jt/profiles/jt_switch_profile_button.dart';
 import 'package:fladder/models/settings/client_settings_model.dart';
 import 'package:fladder/providers/settings/client_settings_provider.dart';
 import 'package:fladder/routes/auto_router.dart';
@@ -211,6 +212,7 @@ class SideNavigationRail extends ConsumerWidget {
                               }
                             },
                           ),
+                          JtSwitchProfileButton(expanded: shouldExpand), // JT-HOOK: profiles
                         ],
                       ),
                     ),

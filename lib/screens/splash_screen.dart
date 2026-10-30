@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:fladder/jt/jt_defaults.dart';
 import 'package:fladder/models/account_model.dart';
 import 'package:fladder/providers/arguments_provider.dart';
 import 'package:fladder/providers/shared_provider.dart';
@@ -27,7 +28,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((value) async {
       await Future.delayed(const Duration(milliseconds: 500));
-      final AccountModel? lastUsedAccount = ref.read(sharedUtilityProvider).getActiveAccount();
+      // JT-HOOK: profiles - elke koude start naar "Wie kijkt er?", ook met autoLogin.
+      final AccountModel? lastUsedAccount =
+          JtDefaults.chooseProfileOnStart ? null : ref.read(sharedUtilityProvider).getActiveAccount();
       ref.read(userProvider.notifier).updateUser(lastUsedAccount);
 
       if (context.mounted) {
