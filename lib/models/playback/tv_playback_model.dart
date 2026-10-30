@@ -33,8 +33,9 @@ class TvPlaybackModel extends PlaybackModel {
   static String? _lastGuideProgId;
   static bool _isSwitching = false;
 
-  /// Keyed by live stream id: this model is copied every tick, and a zap and the
-  /// stop that follows it both close the same stream.
+  /// Keyed by play session: this model is copied every tick, and a zap and the stop
+  /// that follows it both close the same stream. Not by live stream id, a channel
+  /// that is opened again may get the same one and has to be closed again.
   static final Map<String, Future<void>> _closedLiveStreams = {};
   static const _closeTimeout = Duration(seconds: 3);
 
@@ -310,7 +311,8 @@ class TvPlaybackModel extends PlaybackModel {
   Future<void> closeLiveStream(Ref ref) {
     final id = liveStreamId;
     if (id == null) return _reportStopped(ref);
-    return _closedLiveStreams[id] ??= _reportStopped(ref).whenComplete(() => _closeOnServer(ref, id));
+    final key = playbackInfo?.playSessionId ?? id;
+    return _closedLiveStreams[key] ??= _reportStopped(ref).whenComplete(() => _closeOnServer(ref, id));
   }
 
   /// Regular requests die with the page, this one is sent with fetch keepalive.

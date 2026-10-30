@@ -206,7 +206,7 @@ class PlaybackModelHelper {
     final model = await opening;
     final playing = ref.read(playBackModel);
     if (model is! TvPlaybackModel) return;
-    if (playing is TvPlaybackModel && playing.liveStreamId == model.liveStreamId) return;
+    if (playing is TvPlaybackModel && playing.playbackInfo?.playSessionId == model.playbackInfo?.playSessionId) return;
     await model.closeLiveStream(ref);
   }
 

@@ -56,13 +56,13 @@ void main() {
         ref,
       );
 
-  TvPlaybackModel model({String? liveStreamId = 'stream-1'}) {
+  TvPlaybackModel model({String? liveStreamId = 'stream-1', String? playSessionId}) {
     final channel = channelNamed('channel-1');
     return TvPlaybackModel(
       channel: channel,
       item: channel,
       playbackInfo: PlaybackInfoResponse(
-        playSessionId: 'session-1',
+        playSessionId: playSessionId ?? 'session-$liveStreamId',
         mediaSources: [MediaSourceInfo(id: 'source-1', liveStreamId: liveStreamId)],
       ),
     );
@@ -85,7 +85,7 @@ void main() {
     expect(service.calls, ['stopped', 'close:stream-1']);
     final stop = service.stops.single!;
     expect(stop.liveStreamId, 'stream-1');
-    expect(stop.playSessionId, 'session-1');
+    expect(stop.playSessionId, 'session-stream-1');
     expect(stop.itemId, 'channel-1');
     expect(stop.mediaSourceId, 'source-1');
   });
@@ -96,6 +96,13 @@ void main() {
     await tv.copyWith(position: const Duration(seconds: 5)).playbackStopped(Duration.zero, null, ref);
 
     expect(service.calls, ['stopped', 'close:stream-1']);
+  });
+
+  test('a channel opened again with the same live stream id is closed again', () async {
+    await model(playSessionId: 'first').closeLiveStream(ref);
+    await model(playSessionId: 'second').closeLiveStream(ref);
+
+    expect(service.calls, ['stopped', 'close:stream-1', 'stopped', 'close:stream-1']);
   });
 
   test('closing twice at once sends one close', () async {
@@ -179,6 +186,17 @@ void main() {
         'open:d',
         'load:d',
       ]);
+    });
+
+    test('a late stream with the id of the playing one is closed, the playing one is left alone', () async {
+      final playing = model(liveStreamId: 'same', playSessionId: 'playing');
+      container.read(playBackModel.notifier).state = playing;
+
+      await helper.closeAbandonedStream(Future.value(playing));
+      expect(service.calls, isEmpty);
+
+      await helper.closeAbandonedStream(Future.value(model(liveStreamId: 'same', playSessionId: 'late')));
+      expect(service.calls, ['stopped', 'close:same']);
     });
 
     test('a stop while the stream opens closes that stream', () async {
