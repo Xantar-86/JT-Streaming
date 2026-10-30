@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer';
 
 import 'package:flutter/foundation.dart';
 
@@ -38,6 +39,7 @@ class _DesktopAppWrapperState extends BaseAppWrapperState<DesktopAppWrapper> wit
 
     await WindowManager.instance.ensureInitialized();
     windowManager.addListener(this);
+    await windowManager.setPreventClose(true);
 
     final packageInfo = await PackageInfo.fromPlatform();
     final clientSettings = ref.read(clientSettingsProvider);
@@ -57,10 +59,16 @@ class _DesktopAppWrapperState extends BaseAppWrapperState<DesktopAppWrapper> wit
   }
 
   @override
-  void onWindowClose() {
-    ref.read(videoPlayerProvider).stop();
+  Future<void> onWindowClose() async {
+    // The window stays up until playback stopped, the process takes open requests down with it.
+    try {
+      await ref.read(videoPlayerProvider).stop().timeout(const Duration(seconds: 8));
+    } catch (e) {
+      log('Error stopping playback on close: $e');
+    }
     ref.read(clientSettingsProvider.notifier).closeDirectory();
     super.onWindowClose();
+    await windowManager.destroy();
   }
 
   @override

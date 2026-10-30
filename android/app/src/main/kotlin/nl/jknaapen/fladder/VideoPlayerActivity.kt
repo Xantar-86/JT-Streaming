@@ -44,6 +44,16 @@ class VideoPlayerActivity : ComponentActivity() {
         super.onPause()
         VideoPlayerObject.implementation.pause()
     }
+
+    // JT-HOOK: live-tv-stop
+    // Home or another app: the activity stays alive behind it, and with it the live
+    // stream on the server. Finishing sends onStop to Flutter, which closes the stream.
+    override fun onStop() {
+        super.onStop()
+        if (VideoPlayerObject.implementation.isTVPlayback && !isChangingConfigurations) {
+            finish()
+        }
+    }
 }
 
 @OptIn(UnstableApi::class)

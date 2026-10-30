@@ -37,6 +37,8 @@ class VideoPlayerImplementation(
     val isTVMode: Flow<Boolean> = playbackData.asStateFlow().map {
         it?.mediaInfo?.playbackType == PlaybackType.TV
     }
+    val isTVPlayback: Boolean
+        get() = playbackData.value?.mediaInfo?.playbackType == PlaybackType.TV
 
     override fun sendPlayableModel(
         playableData: PlayableData,

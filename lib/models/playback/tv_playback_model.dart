@@ -2,9 +2,12 @@ import 'dart:async';
 import 'dart:developer';
 
 import 'package:collection/collection.dart';
+import 'package:flutter/foundation.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:fladder/jellyfin/jellyfin_open_api.swagger.dart';
+import 'package:fladder/jt/web/jt_keepalive_stub.dart' if (dart.library.js_interop) 'package:fladder/jt/web/jt_keepalive_web.dart';
 import 'package:fladder/models/item_base_model.dart';
 import 'package:fladder/models/items/channel_model.dart';
 import 'package:fladder/models/items/channel_program.dart';
@@ -15,6 +18,7 @@ import 'package:fladder/models/playback/playback_model.dart';
 import 'package:fladder/models/playback/playback_queue_state.dart';
 import 'package:fladder/providers/api_provider.dart';
 import 'package:fladder/providers/live_tv_provider.dart';
+import 'package:fladder/providers/user_provider.dart';
 import 'package:fladder/providers/video_player_provider.dart';
 import 'package:fladder/src/video_player_helper.g.dart';
 import 'package:fladder/util/bitrate_helper.dart';
@@ -28,6 +32,15 @@ class TvPlaybackModel extends PlaybackModel {
   static DateTime? _lastScheduledAt;
   static String? _lastGuideProgId;
   static bool _isSwitching = false;
+
+  /// Keyed by live stream id: this model is copied every tick, and a zap and the
+  /// stop that follows it both close the same stream.
+  static final Map<String, Future<void>> _closedLiveStreams = {};
+  static const _closeTimeout = Duration(seconds: 3);
+
+  @visibleForTesting
+  static void resetClosedLiveStreams() => _closedLiveStreams.clear();
+
   final ChannelModel channel;
 
   final bool isNativePlayerBackend;
@@ -38,6 +51,11 @@ class TvPlaybackModel extends PlaybackModel {
 
   @override
   ItemBaseModel get item => playingProgram?.toItemBaseModel() ?? channel;
+
+  MediaSourceInfo? get _liveMediaSource =>
+      playbackInfo?.mediaSources?.firstWhereOrNull((source) => source.liveStreamId != null);
+
+  String? get liveStreamId => _liveMediaSource?.liveStreamId;
 
   final Duration? position;
   final Duration? duration;
@@ -264,8 +282,9 @@ class TvPlaybackModel extends PlaybackModel {
     await ref.read(jellyApiProvider).sessionsPlayingPost(
           body: PlaybackStartInfo(
             canSeek: true,
-            itemId: item.id,
-            mediaSourceId: item.id,
+            itemId: channel.id,
+            mediaSourceId: _liveMediaSource?.id ?? channel.id,
+            liveStreamId: liveStreamId,
             playSessionId: playbackInfo?.playSessionId,
             subtitleStreamIndex: item.streamModel?.defaultSubStreamIndex,
             audioStreamIndex: item.streamModel?.defaultAudioStreamIndex,
@@ -282,15 +301,51 @@ class TvPlaybackModel extends PlaybackModel {
   @override
   Future<PlaybackModel?> playbackStopped(Duration position, Duration? totalDuration, Ref ref) async {
     stopTracking();
-
-    await ref.read(jellyApiProvider).sessionsPlayingStoppedPost(
-          body: PlaybackStopInfo(
-            itemId: item.id,
-            mediaSourceId: item.id,
-            playSessionId: playbackInfo?.playSessionId,
-          ),
-        );
+    await closeLiveStream(ref);
     return this;
+  }
+
+  /// Reports the stop and closes the stream on the server. The IPTV subscription
+  /// allows one connection, so a stream left open blocks all other playback.
+  Future<void> closeLiveStream(Ref ref) {
+    final id = liveStreamId;
+    if (id == null) return _reportStopped(ref);
+    return _closedLiveStreams[id] ??= _reportStopped(ref).whenComplete(() => _closeOnServer(ref, id));
+  }
+
+  /// Regular requests die with the page, this one is sent with fetch keepalive.
+  void closeLiveStreamOnPageExit(Ref ref) {
+    final id = liveStreamId;
+    final serverUrl = ref.read(serverUrlProvider);
+    final headers = ref.read(userProvider)?.credentials.header(ref);
+    if (id == null || serverUrl == null || headers == null) return;
+    jtPostKeepalive('$serverUrl/LiveStreams/Close?liveStreamId=${Uri.encodeQueryComponent(id)}', headers);
+  }
+
+  Future<void> _reportStopped(Ref ref) async {
+    try {
+      await ref
+          .read(jellyApiProvider)
+          .sessionsPlayingStoppedPost(
+            body: PlaybackStopInfo(
+              itemId: channel.id,
+              mediaSourceId: _liveMediaSource?.id ?? channel.id,
+              liveStreamId: liveStreamId,
+              playSessionId: playbackInfo?.playSessionId,
+            ),
+          )
+          .timeout(_closeTimeout);
+    } catch (e, stackTrace) {
+      log('Failed to report live tv stop: $e', stackTrace: stackTrace);
+    }
+  }
+
+  Future<void> _closeOnServer(Ref ref, String id) async {
+    try {
+      await ref.read(jellyApiProvider).liveStreamsClosePost(liveStreamId: id).timeout(_closeTimeout);
+    } catch (e, stackTrace) {
+      log('Failed to close live stream $id: $e', stackTrace: stackTrace);
+    }
   }
 
   @override

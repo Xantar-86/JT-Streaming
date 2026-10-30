@@ -730,6 +730,10 @@ class JellyService {
     return api.sessionsPlayingStoppedPost(body: body);
   }
 
+  // Not skipped in incognito: the stream is open on the server either way.
+  Future<Response> liveStreamsClosePost({required String liveStreamId}) =>
+      api.liveStreamsClosePost(liveStreamId: liveStreamId);
+
   Future<Response> sessionsPlayingProgressPost({required PlaybackProgressInfo? body}) async {
     if (ref.read(incognitoProvider)) return Response(http.Response("", 200), null);
     return api.sessionsPlayingProgressPost(body: body);

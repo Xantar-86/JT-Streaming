@@ -93,6 +93,10 @@ abstract class BaseAppWrapperState<T extends BaseAppWrapper> extends ConsumerSta
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.detached) {
+      ref.read(videoPlayerProvider).stopLiveTvInBackground();
+    }
+
     final ignoreLifeCycle = ref.read(lockScreenActiveProvider) ||
         ref.read(userProvider) == null ||
         ref.read(videoPlayerProvider).lastState?.playing == true ||

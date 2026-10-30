@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:developer';
 
 import 'package:flutter/foundation.dart';
@@ -185,24 +186,55 @@ class PlaybackModelHelper {
     return modelToLoad;
   }
 
-  Future<void> loadTVChannel(ChannelModel? channel) async {
-    if (channel == null) return;
+  static int _channelRequest = 0;
+  static Future<void> _channelQueue = Future.value();
+
+  /// Zaps run one at a time, a stream has to be closed before the next one opens.
+  /// Only the last channel asked for while one is switching gets loaded.
+  Future<void> loadTVChannel(ChannelModel? channel) {
+    if (channel == null) return Future.value();
+    final request = ++_channelRequest;
     ref.read(videoPlayerProvider).pause();
     ref.read(mediaPlaybackProvider.notifier).update((state) => state.copyWith(buffering: true));
+    return _channelQueue = _channelQueue.then((_) => _switchChannel(channel, request)).catchError((Object e) {
+      log("Error switching channel: $e");
+    });
+  }
+
+  /// A live stream opened for playback that won't happen, or a request that came back too late.
+  Future<void> closeAbandonedStream(Future<PlaybackModel?> opening) async {
+    final model = await opening;
+    final playing = ref.read(playBackModel);
+    if (model is! TvPlaybackModel) return;
+    if (playing is TvPlaybackModel && playing.liveStreamId == model.liveStreamId) return;
+    await model.closeLiveStream(ref);
+  }
+
+  Future<void> _switchChannel(ChannelModel channel, int request) async {
     final currentModel = ref.read(playBackModel);
+    if (request != _channelRequest || currentModel == null) return;
+
+    final opening = createPlaybackModel(
+      null,
+      channel,
+      forcedPlaybackType: PlaybackType.tv,
+      oldModel: currentModel,
+    );
 
     PlaybackModel? serverModel;
     try {
-      serverModel = await createPlaybackModel(
-        null,
-        channel,
-        forcedPlaybackType: PlaybackType.tv,
-        oldModel: currentModel,
-      ).timeout(const Duration(seconds: 8), onTimeout: () {
+      serverModel = await opening.timeout(const Duration(seconds: 8), onTimeout: () {
+        unawaited(closeAbandonedStream(opening));
         return null;
       });
     } catch (e) {
       serverModel = null;
+    }
+
+    // Stopped or zapped again while this stream was opening.
+    if (request != _channelRequest || ref.read(playBackModel) == null) {
+      await closeAbandonedStream(Future.value(serverModel));
+      return;
     }
 
     final newModel = serverModel ??
@@ -213,8 +245,15 @@ class PlaybackModelHelper {
           oldModel: currentModel,
         );
 
-    if (newModel == null) return;
-    ref.read(videoPlayerProvider.notifier).loadPlaybackItem(newModel, Duration.zero);
+    if (newModel == null) {
+      // The old stream is closed by now, so there is nothing left to fall back on.
+      ref.read(mediaPlaybackProvider.notifier).update((state) => state.copyWith(buffering: false, errorPlaying: true));
+      return;
+    }
+    await ref
+        .read(videoPlayerProvider.notifier)
+        .loadPlaybackItem(newModel, Duration.zero)
+        .timeout(const Duration(seconds: 10), onTimeout: () => false);
   }
 
   Future<OfflinePlaybackModel?> _createOfflinePlaybackModel(
@@ -397,6 +436,9 @@ class PlaybackModelHelper {
           ref.read(videoPlayerSettingsProvider.select((value) => value.wantedPlayer == PlayerOptions.nativePlayer));
       final isExternalSub = newStreamModel?.currentSubStream?.isExternal == true;
 
+      // autoOpenLiveStream below opens a stream right away, the running one has to be gone first.
+      await ref.read(videoPlayerProvider).releaseLiveStream();
+
       final Response<PlaybackInfoResponse> response = await api.itemsItemIdPlaybackInfoPost(
         itemId: item.id,
         body: PlaybackInfoDto(
@@ -530,7 +572,8 @@ class PlaybackModelHelper {
   }
 
   Future<void> shouldReload(PlaybackModel playbackModel) async {
-    if (playbackModel is OfflinePlaybackModel) {
+    // Live tv has no streams to reselect, a reload would only open a second live stream.
+    if (playbackModel is OfflinePlaybackModel || playbackModel is TvPlaybackModel) {
       return;
     }
 

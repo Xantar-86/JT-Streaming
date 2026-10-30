@@ -21,6 +21,7 @@ import 'package:fladder/models/playback/audio_prefetch_buffer.dart';
 import 'package:fladder/models/playback/audio_url_resolver.dart';
 import 'package:fladder/models/playback/playback_model.dart';
 import 'package:fladder/models/playback/playback_queue_state.dart';
+import 'package:fladder/models/playback/tv_playback_model.dart';
 import 'package:fladder/models/settings/video_player_settings.dart';
 import 'package:fladder/providers/api_provider.dart';
 import 'package:fladder/providers/audio_lyrics_provider.dart';
@@ -532,8 +533,11 @@ class MediaControlsWrapper extends BaseAudioHandler implements VideoPlayerContro
     final position = _player?.lastState.position;
     final totalDuration = _player?.lastState.duration;
 
-    // Small delay so we don't post right after playback/progress update
-    await Future.delayed(const Duration(seconds: 1));
+    // Small delay so we don't post right after playback/progress update.
+    // Live tv posts no progress, and has to close before the app goes down.
+    if (playbackModel is! TvPlaybackModel) {
+      await Future.delayed(const Duration(seconds: 1));
+    }
 
     await playbackModel.playbackStopped(position ?? Duration.zero, totalDuration, ref);
 
@@ -555,6 +559,23 @@ class MediaControlsWrapper extends BaseAudioHandler implements VideoPlayerContro
     }
 
     return super.stop();
+  }
+
+  /// Closes the running live stream before another one opens. The [playBackModel]
+  /// stays so the player keeps its screen while the next item loads.
+  Future<void> releaseLiveStream() async {
+    final model = ref.read(playBackModel);
+    if (model is! TvPlaybackModel) return;
+    await _player?.stop();
+    await model.closeLiveStream(ref);
+  }
+
+  /// The app left the foreground. The native player has its own activity and handles this there.
+  Future<void> stopLiveTvInBackground() async {
+    final model = ref.read(playBackModel);
+    if (model is! TvPlaybackModel || _player is NativePlayer) return;
+    if (kIsWeb) model.closeLiveStreamOnPageExit(ref);
+    await stop();
   }
 
   Future<void> playOrPause() async {

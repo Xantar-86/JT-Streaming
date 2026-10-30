@@ -141,13 +141,15 @@ extension ChannelModelExtension on ChannelModel? {
   }) async {
     if (this == null) return;
 
-    final op = CancelableOperation.fromFuture(ref.read(playbackModelHelper).createPlaybackModel(
-          context,
-          this,
-          forcedPlaybackType: PlaybackType.tv,
-          showPlaybackOptions: false,
-          startPosition: Duration.zero,
-        ));
+    final helper = ref.read(playbackModelHelper);
+    final opening = helper.createPlaybackModel(
+      context,
+      this,
+      forcedPlaybackType: PlaybackType.tv,
+      showPlaybackOptions: false,
+      startPosition: Duration.zero,
+    );
+    final op = CancelableOperation.fromFuture(opening, onCancel: () => helper.closeAbandonedStream(opening));
 
     _showLoadingIndicator(context, this!, op);
 
