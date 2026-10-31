@@ -200,11 +200,23 @@ van de hash (voor als de server even weg is) en de teller van foute pogingen. Pi
 Let op: 4 cijfers zijn 10 000 mogelijkheden; wie de DisplayPreferences kan lezen (de gebruiker zelf,
 Jellyfin-beheerders) kan de code terugrekenen. Het is een gezinsslot, geen beveiliging van het account.
 
+Er is één pincode. Het upstream app-slot (Instellingen > Profiel) is vervangen door dezelfde pincode; een oud
+lokaal slot krijgt ons toetsenblok en verhuist bij de eerste juiste code naar de server. Na een aanmelding met
+wachtwoord vraagt de app "Pincode instellen" of "Overslaan", alleen als het profiel nog geen code heeft.
+"Uitloggen" gaat terug naar "Wie kijkt er?" en houdt profiel en token; verwijderen kan alleen via
+"Profielen beheren" (dat meldt het token wel af).
+
 De app vraagt nooit de gebruikerslijst op (`/Users/Public`); de server wordt pas aangesproken bij het
 kiezen of toevoegen van een profiel. Hooks: `// JT-HOOK: profiles` in `auth_provider.dart` (4),
-`splash_screen.dart`, `login_screen.dart` (2), `app_bootstrap.dart`, `side_navigation_bar.dart`,
-`navigation_drawer.dart`, `shared_provider.dart`. Tests: `test/jt/profiles/` (de live-proef draait alleen met
+`splash_screen.dart`, `login_screen.dart` (2), `login_screen_credentials.dart` (3), `app_bootstrap.dart`,
+`side_navigation_bar.dart`, `navigation_drawer.dart`, `shared_provider.dart`, `settings_screen.dart`,
+`profile_settings_page.dart`. Tests: `test/jt/profiles/` (de live-proef draait alleen met
 `JELLYFIN_FORGE_TEST`).
+
+**AVI op Android TV.** `// JT-HOOK: native-no-avi` in `lib/profiles/default_profile.dart`: de ExoPlayer van
+Android TV speelt AVI niet direct (`container: '-avi'`, een uitsluitlijst bij Jellyfin), de server levert
+die als HLS. Media3 `AviExtractor` leest alleen het eerste `movi`-deel en kent de FourCC's `x264`/`X264` niet.
+Windows en web veranderen niet.
 
 ### Hooks in upstream-bestanden
 
@@ -442,7 +454,7 @@ Per conflict:
 Daarna:
 
 ```powershell
-git grep -c "JT-HOOK" -- lib ":!lib/jt"   # verwacht: 71 regels in 34 bestanden (stand jt.6.8: + profiles in shared_provider.dart, + live-keepalive)
+git grep -c "JT-HOOK" -- lib ":!lib/jt"   # verwacht: 77 regels in 37 bestanden (stand jt.6.8: profiles uitgebreid, + live-keepalive, + native-no-avi)
 git grep -c "JT-PATCH" -- third_party ":!*.md"   # verwacht: 9 regels in 2 bestanden (stand jt.3)
 flutter analyze
 flutter test
