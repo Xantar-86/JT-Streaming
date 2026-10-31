@@ -100,12 +100,14 @@ class _FakePinStore extends JtProfilePinStore {
 
   JtPinRecord record;
   bool serverUp = true;
+  bool hasCopy = true;
 
   @override
-  Future<JtPinFetch> fetch(AccountModel account) async => JtPinFetched(record);
+  Future<JtPinFetch> fetch(AccountModel account) async =>
+      serverUp ? JtPinFetched(record) : JtPinOffline(cached(account));
 
   @override
-  JtPinRecord? cached(AccountModel account) => record;
+  JtPinRecord? cached(AccountModel account) => hasCopy ? record : null;
 
   @override
   Future<bool> save(AccountModel account, String? pin) async {
@@ -624,7 +626,7 @@ void main() {
       await _letSnackExpire(tester);
     });
 
-    testWidgets('remove: an old lock needs no server', (tester) async {
+    testWidgets('remove: offline, a copy of the server state is enough for an old lock', (tester) async {
       await start(tester, (context, ref, account) {
         store.serverUp = false;
         return jtRemovePin(context, ref, account);
@@ -632,6 +634,19 @@ void main() {
       await digits(tester, '4321');
       expect(shared.getAccounts().single.localPin, isEmpty);
       expect(find.text('Pincode weggehaald'), findsOneWidget);
+      await _letSnackExpire(tester);
+    });
+
+    testWidgets('remove: offline without a copy nothing is asked and the old lock stays', (tester) async {
+      await start(tester, (context, ref, account) {
+        store
+          ..serverUp = false
+          ..hasCopy = false;
+        return jtRemovePin(context, ref, account);
+      });
+      expect(find.text('Voer de huidige pincode in'), findsNothing);
+      expect(find.text('De server is niet bereikbaar. Probeer het later opnieuw.'), findsOneWidget);
+      expectStillLocked();
       await _letSnackExpire(tester);
     });
 
