@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:workmanager/workmanager.dart';
 
 import 'package:fladder/background/update_notifications_worker.dart' as update_worker;
+import 'package:fladder/jt/web/jt_keepalive_stub.dart' if (dart.library.js_interop) 'package:fladder/jt/web/jt_keepalive_web.dart'; // JT-HOOK: live-keepalive
 import 'package:fladder/models/account_model.dart';
 import 'package:fladder/providers/arguments_provider.dart';
 import 'package:fladder/providers/connectivity_provider.dart';
@@ -48,6 +49,7 @@ abstract class BaseAppWrapperState<T extends BaseAppWrapper> extends ConsumerSta
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    jtOnPageHide(() => ref.read(videoPlayerProvider).closeLiveStreamOnPageExit()); // JT-HOOK: live-keepalive
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       ref.read(sharedUtilityProvider).loadSettings();
       await platformInit();

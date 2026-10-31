@@ -149,11 +149,13 @@ extension ChannelModelExtension on ChannelModel? {
       showPlaybackOptions: false,
       startPosition: Duration.zero,
     );
-    final op = CancelableOperation.fromFuture(opening, onCancel: () => helper.closeAbandonedStream(opening));
+    // Not fromFuture: that ignores the X as soon as the stream is open, the dialog stays until the player is up.
+    final loading = CancelableCompleter<void>(onCancel: () => helper.closeAbandonedStream(opening));
+    final op = loading.operation;
 
     _showLoadingIndicator(context, this!, op);
 
-    final model = await op.valueOrCancellation(null);
+    final model = await opening;
 
     if (op.isCanceled || model == null) {
       if (!op.isCanceled) {
@@ -946,7 +948,11 @@ Future<void> _playVideo(
   final loadedCorrectly = await ref.read(videoPlayerProvider.notifier).loadPlaybackItem(
         current,
         actualStartPosition,
+        isCancelled: () => cancelOperation?.isCanceled ?? false,
       );
+
+  // The X closed the dialog itself, another pop would take the page below it.
+  if (cancelOperation?.isCanceled ?? false) return;
 
   if (!loadedCorrectly) {
     if (context.mounted) {
@@ -959,8 +965,6 @@ Future<void> _playVideo(
     }
     return;
   }
-
-  if (cancelOperation?.isCanceled ?? false) return;
 
   try {
     Navigator.of(context, rootNavigator: true).pop();

@@ -51,6 +51,7 @@ class MediaControlsWrapper extends BaseAudioHandler implements VideoPlayerContro
   StreamSubscription<PlayerState>? _playerStateSubscription;
 
   bool get hasPlayer => _player != null;
+  bool get isStopped => _isStopped;
 
   PlayerOptions? get backend => switch (_player) {
         LibMPV _ => PlayerOptions.libMPV,
@@ -78,6 +79,8 @@ class MediaControlsWrapper extends BaseAudioHandler implements VideoPlayerContro
   bool _audioQueueTransitioning = false;
   bool _audioQueueCompletionPending = false;
   bool _wakelockEnabled = false;
+  bool _loadPending = false;
+  bool _stopAfterLoad = false;
 
   AudioPrefetchBuffer? _prefetchBuffer;
   List<ItemBaseModel> _mpvPlaylistItems = [];
@@ -164,7 +167,17 @@ class MediaControlsWrapper extends BaseAudioHandler implements VideoPlayerContro
     });
   }
 
+  /// Stops what plays before a new item loads. From here on [stop] is a no-op until
+  /// [loadVideo] finished, so a stop in between is kept for live tv.
+  Future<void> stopBeforeLoad() {
+    final stopping = stop();
+    _stopAfterLoad = false;
+    _loadPending = true;
+    return stopping;
+  }
+
   Future<void> loadVideo(PlaybackModel model, Duration startPosition, bool play) async {
+    _loadPending = true;
     try {
       if (_player is LibMPV) {
         (_player as LibMPV).setMusicPlaybackMode(false);
@@ -183,6 +196,12 @@ class MediaControlsWrapper extends BaseAudioHandler implements VideoPlayerContro
       }
     } finally {
       _isStopped = false;
+      _loadPending = false;
+      // Back or Home while the channel loaded: its live stream is open by now.
+      if (_stopAfterLoad) {
+        _stopAfterLoad = false;
+        if (model is TvPlaybackModel) await stop();
+      }
     }
   }
 
@@ -502,7 +521,10 @@ class MediaControlsWrapper extends BaseAudioHandler implements VideoPlayerContro
 
   @override
   Future<void> stop() async {
-    if (_isStopped) return;
+    if (_isStopped) {
+      _stopAfterLoad = _loadPending;
+      return;
+    }
     _isStopped = true;
 
     if (_player is LibMPV) {
@@ -574,8 +596,13 @@ class MediaControlsWrapper extends BaseAudioHandler implements VideoPlayerContro
   Future<void> stopLiveTvInBackground() async {
     final model = ref.read(playBackModel);
     if (model is! TvPlaybackModel || _player is NativePlayer) return;
-    if (kIsWeb) model.closeLiveStreamOnPageExit(ref);
     await stop();
+  }
+
+  /// The browser takes the page down, there is no time left to wait for anything.
+  void closeLiveStreamOnPageExit() {
+    final model = ref.read(playBackModel);
+    if (model is TvPlaybackModel) model.closeLiveStreamOnPageExit(ref);
   }
 
   Future<void> playOrPause() async {

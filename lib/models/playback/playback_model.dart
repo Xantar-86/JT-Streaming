@@ -206,7 +206,10 @@ class PlaybackModelHelper {
     final model = await opening;
     final playing = ref.read(playBackModel);
     if (model is! TvPlaybackModel) return;
-    if (playing is TvPlaybackModel && playing.playbackInfo?.playSessionId == model.playbackInfo?.playSessionId) return;
+    if (playing is TvPlaybackModel && playing.playbackInfo?.playSessionId == model.playbackInfo?.playSessionId) {
+      await ref.read(videoPlayerProvider).stop();
+    }
+    // A stop during loadVideo waits for the player, the connection doesn't have to.
     await model.closeLiveStream(ref);
   }
 

@@ -33,6 +33,9 @@ class _VideoPlayerState extends ConsumerState<VideoPlayer> with WidgetsBindingOb
 
   late PlaybackModel? currentPlaybackModel = ref.read(playBackModel);
 
+  /// [ref] is no longer usable in [dispose].
+  late final ProviderContainer _container;
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     //Don't manage the wakelock on desktop focus loss
@@ -46,6 +49,12 @@ class _VideoPlayerState extends ConsumerState<VideoPlayer> with WidgetsBindingOb
 
   @override
   void dispose() {
+    // The browser back button drops this route without a pop, so the controls never get to
+    // close it. A live stream would stay open on the server with nothing left to stop it.
+    final stillPlaying = _container.read(mediaPlaybackProvider).state == VideoPlayerState.fullScreen;
+    if (stillPlaying && _container.read(playBackModel) is TvPlaybackModel) {
+      Future.microtask(_container.read(videoPlayerProvider).stop);
+    }
     WidgetsBinding.instance.removeObserver(this);
     SystemChrome.setPreferredOrientations(DeviceOrientation.values);
     super.dispose();
@@ -55,6 +64,7 @@ class _VideoPlayerState extends ConsumerState<VideoPlayer> with WidgetsBindingOb
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _container = ProviderScope.containerOf(context, listen: false);
     Future.microtask(() {
       ref.read(mediaPlaybackProvider.notifier).update((state) => state.copyWith(state: VideoPlayerState.fullScreen));
       final orientations = ref.read(videoPlayerSettingsProvider.select((value) => value.allowedOrientations));

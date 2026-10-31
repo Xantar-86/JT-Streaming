@@ -210,6 +210,8 @@ kiezen of toevoegen van een profiel. Hooks: `// JT-HOOK: profiles` in `auth_prov
 
 Elke plek waar een upstream-bestand naar `lib/jt/` verwijst, is gemarkeerd met `// JT-HOOK: <naam>`.
 Controle na een rebase: `git grep -c "JT-HOOK"` (verwacht aantal: zie *Upstream binnenhalen*).
+`// JT-HOOK: live-keepalive` (2 + 2 regels) in `base_app_wrapper.dart` en `tv_playback_model.dart`
+sluit live tv ook af als de browser de pagina weghaalt (`lib/jt/web/jt_keepalive_web.dart`).
 
 ## Bouwen
 
@@ -440,7 +442,7 @@ Per conflict:
 Daarna:
 
 ```powershell
-git grep -c "JT-HOOK" -- lib ":!lib/jt"   # verwacht: 67 regels in 32 bestanden (stand na 58fc5db2: + profiles in shared_provider.dart)
+git grep -c "JT-HOOK" -- lib ":!lib/jt"   # verwacht: 71 regels in 34 bestanden (stand jt.6.8: + profiles in shared_provider.dart, + live-keepalive)
 git grep -c "JT-PATCH" -- third_party ":!*.md"   # verwacht: 9 regels in 2 bestanden (stand jt.3)
 flutter analyze
 flutter test
