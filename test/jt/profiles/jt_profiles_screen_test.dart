@@ -5,13 +5,22 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:fladder/jt/profiles/jt_manage_profiles.dart';
+import 'package:fladder/jt/profiles/jt_pin.dart';
 import 'package:fladder/jt/profiles/jt_pin_pad.dart';
 import 'package:fladder/jt/profiles/jt_profile_flow.dart';
+import 'package:fladder/jt/profiles/jt_profile_pin_store.dart';
+import 'package:fladder/jt/profiles/jt_profile_widgets.dart';
 import 'package:fladder/jt/profiles/jt_profiles_screen.dart';
 import 'package:fladder/l10n/generated/app_localizations.dart';
 import 'package:fladder/models/account_model.dart';
 import 'package:fladder/models/credentials_model.dart';
+import 'package:fladder/providers/auth_provider.dart';
 import 'package:fladder/providers/shared_provider.dart';
+import 'package:fladder/screens/home_screen.dart';
+import 'package:fladder/util/adaptive_layout/adaptive_layout.dart';
+import 'package:fladder/util/adaptive_layout/adaptive_layout_model.dart';
+import 'package:fladder/util/poster_defaults.dart';
 
 AccountModel _account(String name, {int minutesAgo = 60}) => AccountModel(
       name: name,
@@ -21,7 +30,13 @@ AccountModel _account(String name, {int minutesAgo = 60}) => AccountModel(
       credentials: CredentialsModel.internal(url: 'https://tv.example', serverId: 'srv', token: 't-$name'),
     );
 
-Future<void> _pump(WidgetTester tester, Widget home, {Size size = const Size(1920, 1080)}) async {
+Future<void> _pump(
+  WidgetTester tester,
+  Widget home, {
+  Size size = const Size(1920, 1080),
+  List<Override> overrides = const [],
+  Map<ShortcutActivator, Intent>? shortcuts,
+}) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
@@ -29,11 +44,28 @@ Future<void> _pump(WidgetTester tester, Widget home, {Size size = const Size(192
   final prefs = await SharedPreferences.getInstance();
   await tester.pumpWidget(
     ProviderScope(
-      overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+      overrides: [sharedPreferencesProvider.overrideWithValue(prefs), ...overrides],
       child: MaterialApp(
         locale: const Locale('nl'),
+        shortcuts: shortcuts,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
+        // FladderSnack vraagt de maat op bij AdaptiveLayout.
+        builder: (context, child) => AdaptiveLayout(
+          data: AdaptiveLayoutModel(
+            viewSize: ViewSize.desktop,
+            layoutMode: LayoutMode.single,
+            inputDevice: InputDevice.pointer,
+            platform: TargetPlatform.windows,
+            isDesktop: true,
+            posterDefaults: const PosterDefaults(size: 350, ratio: 0.55),
+            controller: {for (final tab in HomeTabs.values) tab: ScrollController()},
+            sideBarWidth: 0,
+            topBarHeight: 0,
+            statusBarHeight: 0,
+          ),
+          child: child!,
+        ),
         home: Scaffold(body: home),
       ),
     ),
@@ -54,7 +86,133 @@ String? _focusedTileKey() {
   return key;
 }
 
+/// Op web zijn pijltoetsen standaard scrollen (zie WP2.8d): zonder deze kaart test de VM dat niet.
+const Map<ShortcutActivator, Intent> _webArrows = {
+  SingleActivator(LogicalKeyboardKey.arrowLeft): ScrollIntent(direction: AxisDirection.left),
+  SingleActivator(LogicalKeyboardKey.arrowRight): ScrollIntent(direction: AxisDirection.right),
+  SingleActivator(LogicalKeyboardKey.arrowUp): ScrollIntent(direction: AxisDirection.up),
+  SingleActivator(LogicalKeyboardKey.arrowDown): ScrollIntent(direction: AxisDirection.down),
+};
+
+class _FakePinStore extends JtProfilePinStore {
+  _FakePinStore(super.ref, this.record);
+
+  JtPinRecord record;
+
+  @override
+  Future<JtPinFetch> fetch(AccountModel account) async => JtPinFetched(record);
+
+  @override
+  JtPinRecord? cached(AccountModel account) => record;
+
+  @override
+  Future<bool> save(AccountModel account, String? pin) async {
+    record = pin == null ? JtPinRecord.none : JtPinRecord(JtPin.hash(pin));
+    return true;
+  }
+
+  @override
+  Future<AccountModel?> reauthenticate(AccountModel account, String password) async => null;
+}
+
+Override _pinStore(JtPinRecord record) => jtProfilePinStoreProvider.overrideWith((ref) => _FakePinStore(ref, record));
+
+Future<void> _open(WidgetTester tester, Future<void> Function(BuildContext context, WidgetRef ref) action,
+    {List<Override> overrides = const [], Map<ShortcutActivator, Intent>? shortcuts}) async {
+  await _pump(
+    tester,
+    Consumer(
+      builder: (context, ref, _) => TextButton(onPressed: () => action(context, ref), child: const Text('open')),
+    ),
+    overrides: overrides,
+    shortcuts: shortcuts,
+  );
+  await tester.tap(find.text('open'));
+  await tester.pumpAndSettle();
+}
+
+Future<void> _letSnackExpire(WidgetTester tester) async {
+  await tester.pump(const Duration(seconds: 30));
+  await tester.pumpAndSettle();
+}
+
+bool _fieldHasFocus(WidgetTester tester) => tester.widget<EditableText>(find.byType(EditableText)).focusNode.hasPrimaryFocus;
+
+Color _ringColor(WidgetTester tester, Finder label) {
+  final ring = find.ancestor(of: label, matching: find.byType(JtFocusRing));
+  final box = tester.widget<AnimatedContainer>(find.descendant(of: ring, matching: find.byType(AnimatedContainer)).first);
+  return (box.decoration! as BoxDecoration).border!.top.color;
+}
+
 void main() {
+  group('Dialogen met de afstandsbediening', () {
+    testWidgets('remove confirmation: arrow right reaches "Verwijderen", also with the web arrow keys', (tester) async {
+      await _open(
+        tester,
+        (context, ref) => jtRemoveProfile(context, ref, _account('Rita')),
+        shortcuts: _webArrows,
+      );
+      expect(FocusManager.instance.primaryFocus?.context?.findAncestorWidgetOfExactType<FilledButton>(), isNull);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pumpAndSettle();
+      expect(FocusManager.instance.primaryFocus?.context?.findAncestorWidgetOfExactType<FilledButton>(), isNotNull);
+    });
+
+    testWidgets('wrong password: focus returns to the field', (tester) async {
+      await _open(
+        tester,
+        (context, ref) => jtAskPassword(context, ref, _account('Lotte')),
+        overrides: [_pinStore(JtPinRecord.none)],
+      );
+      await tester.enterText(find.byType(TextField), 'fout');
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+      expect(find.byType(TextField), findsOneWidget);
+      expect(_fieldHasFocus(tester), isTrue);
+    });
+
+    for (final (name, value) in const [('invalid', 'tv.example'), ('valid', 'https://tv.example')]) {
+      testWidgets('Enter in the server address ($name): focus stays in the field', (tester) async {
+        await _open(tester, (context, ref) => showJtManageProfiles(context));
+        await tester.tap(find.text('Geavanceerd'));
+        await tester.pumpAndSettle();
+        await tester.enterText(find.byType(TextField), value);
+        await tester.testTextInput.receiveAction(TextInputAction.done);
+        await tester.pumpAndSettle();
+        expect(_fieldHasFocus(tester), isTrue);
+        await _letSnackExpire(tester);
+      });
+    }
+
+    testWidgets('after "Pincode weghalen" no stale focus ring on the remove button', (tester) async {
+      await _open(tester, (context, ref) async {
+        await ref.read(sharedUtilityProvider).addAccount(_account('Mila'));
+        ref.read(authProvider.notifier).getSavedAccounts();
+        await showJtManageProfiles(context);
+      }, overrides: [_pinStore(JtPinRecord(JtPin.hash('2580')))]);
+      final remove = find.text('Pincode weghalen');
+      expect(remove, findsOneWidget);
+      // Geen pijl naar de knop: het testlettertype is breed en de rij breekt anders af dan op een echt scherm.
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      Focus.of(tester.element(remove)).requestFocus();
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.select);
+      await tester.pumpAndSettle();
+      for (final k in [
+        LogicalKeyboardKey.digit2,
+        LogicalKeyboardKey.digit5,
+        LogicalKeyboardKey.digit8,
+        LogicalKeyboardKey.digit0,
+      ]) {
+        await tester.sendKeyEvent(k);
+      }
+      await tester.pumpAndSettle();
+      expect(remove, findsNothing);
+      expect(_ringColor(tester, find.text('Verwijderen van dit toestel')), Colors.transparent);
+      await _letSnackExpire(tester);
+    });
+  });
+
   group('Wie kijkt er?', () {
     final accounts = [
       _account('Jochen', minutesAgo: 90),

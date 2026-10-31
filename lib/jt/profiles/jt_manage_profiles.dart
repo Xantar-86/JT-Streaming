@@ -30,10 +30,12 @@ class _JtManageProfilesDialog extends ConsumerStatefulWidget {
 class _JtManageProfilesDialogState extends ConsumerState<_JtManageProfilesDialog> {
   late final TextEditingController server =
       TextEditingController(text: JtDefaults.serverOverride(ref.read(sharedPreferencesProvider)) ?? '');
+  final serverFocus = FocusNode();
 
   @override
   void dispose() {
     server.dispose();
+    serverFocus.dispose();
     super.dispose();
   }
 
@@ -107,9 +109,14 @@ class _JtManageProfilesDialogState extends ConsumerState<_JtManageProfilesDialog
                           children: [
                             TextField(
                               controller: server,
+                              focusNode: serverFocus,
                               keyboardType: TextInputType.url,
                               autocorrect: false,
-                              onSubmitted: (_) => _saveServer(),
+                              onSubmitted: (_) async {
+                                await _saveServer();
+                                // Enter haalt de focus uit het veld; zonder dit reageert geen toets meer.
+                                if (mounted) serverFocus.requestFocus();
+                              },
                               decoration: InputDecoration(
                                 labelText: context.localized.jtServerAddress,
                                 hintText: JtDefaults.defaultServer,
@@ -205,14 +212,17 @@ class _JtManageProfilesDialogState extends ConsumerState<_JtManageProfilesDialog
                 label: Text(hasPin ? context.localized.jtPinChange : context.localized.jtPinSet),
               ),
             ),
+            // Sleutels: valt "weghalen" weg, dan mag "Verwijderen" zijn focusrand niet overnemen.
             if (cached == null || hasPin)
               JtFocusRing(
+                key: const ValueKey('jt-pin-remove'),
                 child: TextButton(
                   onPressed: () => _then(jtRemovePin(context, ref, account)),
                   child: Text(context.localized.jtPinRemove),
                 ),
               ),
             JtFocusRing(
+              key: const ValueKey('jt-profile-remove'),
               child: TextButton.icon(
                 style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
                 onPressed: () => _then(jtRemoveProfile(context, ref, account)),

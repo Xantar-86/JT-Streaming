@@ -153,28 +153,31 @@ Future<void> jtRemovePin(BuildContext context, WidgetRef ref, AccountModel accou
 Future<bool> jtRemoveProfile(BuildContext context, WidgetRef ref, AccountModel account) async {
   final confirmed = await showDialog<bool>(
     context: context,
-    builder: (context) => AlertDialog(
-      title: Text(context.localized.jtProfileRemoveTitle(account.name)),
-      content: Text(context.localized.jtProfileRemoveDesc),
-      actions: [
-        JtFocusRing(
-          child: TextButton(
-            autofocus: true,
-            onPressed: () => Navigator.of(context).pop(false),
-            child: Text(context.localized.cancel),
-          ),
-        ),
-        JtFocusRing(
-          child: FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.errorContainer,
-              foregroundColor: Theme.of(context).colorScheme.onErrorContainer,
+    builder: (context) => Shortcuts(
+      shortcuts: jtProfileArrowShortcuts,
+      child: AlertDialog(
+        title: Text(context.localized.jtProfileRemoveTitle(account.name)),
+        content: Text(context.localized.jtProfileRemoveDesc),
+        actions: [
+          JtFocusRing(
+            child: TextButton(
+              autofocus: true,
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text(context.localized.cancel),
             ),
-            onPressed: () => Navigator.of(context).pop(true),
-            child: Text(context.localized.delete),
           ),
-        ),
-      ],
+          JtFocusRing(
+            child: FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.errorContainer,
+                foregroundColor: Theme.of(context).colorScheme.onErrorContainer,
+              ),
+              onPressed: () => Navigator.of(context).pop(true),
+              child: Text(context.localized.delete),
+            ),
+          ),
+        ],
+      ),
     ),
   );
   if (confirmed != true) return false;
@@ -202,12 +205,14 @@ class _JtPasswordDialog extends ConsumerStatefulWidget {
 
 class _JtPasswordDialogState extends ConsumerState<_JtPasswordDialog> {
   final controller = TextEditingController();
+  final fieldFocus = FocusNode();
   bool busy = false;
   String? error;
 
   @override
   void dispose() {
     controller.dispose();
+    fieldFocus.dispose();
     super.dispose();
   }
 
@@ -227,6 +232,8 @@ class _JtPasswordDialogState extends ConsumerState<_JtPasswordDialog> {
       busy = false;
       error = context.localized.somethingWentWrongPasswordCheck;
     });
+    // Enter haalt de focus uit het veld, en een uitgeschakelde knop verliest ze: zonder dit reageert geen toets meer.
+    fieldFocus.requestFocus();
   }
 
   @override
@@ -251,6 +258,7 @@ class _JtPasswordDialogState extends ConsumerState<_JtPasswordDialog> {
               ),
               TextField(
                 controller: controller,
+                focusNode: fieldFocus,
                 autofocus: true,
                 obscureText: true,
                 enableSuggestions: false,

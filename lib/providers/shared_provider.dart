@@ -5,6 +5,7 @@ import 'dart:developer';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:fladder/jt/profiles/jt_profile_pin_store.dart';
 import 'package:fladder/models/account_model.dart';
 import 'package:fladder/models/last_seen_notifications_model.dart';
 import 'package:fladder/models/settings/client_settings_model.dart';
@@ -46,6 +47,13 @@ class SharedUtility extends SharedHelper {
   final Ref _ref;
 
   late final JellyService api = _ref.read(jellyApiProvider);
+
+  // JT-HOOK: profiles - SharedHelper.ref blijft hier null, dus upstream meldt het token nooit af.
+  @override
+  Future<bool?> removeAccount(AccountModel? account) async {
+    if (account != null) await _ref.read(jtProfilePinStoreProvider).signOut(account);
+    return super.removeAccount(account);
+  }
 
   void init() {
     SharedKeys.instance.onKeyChanged.listen((key) async {

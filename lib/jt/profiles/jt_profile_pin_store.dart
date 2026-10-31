@@ -126,6 +126,16 @@ class JtProfilePinStore {
     }
   }
 
+  /// Meldt het token van dit profiel af op de server. Mag mislukken (offline): het profiel gaat toch weg.
+  Future<void> signOut(AccountModel account) async {
+    try {
+      final response = await _api(account).sessionsLogoutPost().timeout(timeout);
+      if (!response.isSuccessful) log('JT sign-out refused: ${response.statusCode}');
+    } catch (e) {
+      log('JT sign-out failed: $e');
+    }
+  }
+
   JtPinRecord? cached(AccountModel account) {
     final raw = ref.read(sharedPreferencesProvider).getString(_cacheKey(account));
     if (raw == null) return null;
