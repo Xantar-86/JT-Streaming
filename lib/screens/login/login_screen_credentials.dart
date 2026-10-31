@@ -7,6 +7,7 @@ import 'package:auto_route/auto_route.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:iconsax_plus/iconsax_plus.dart';
 
+import 'package:fladder/jt/profiles/jt_profile_flow.dart';
 import 'package:fladder/models/account_model.dart';
 import 'package:fladder/providers/api_provider.dart';
 import 'package:fladder/providers/auth_provider.dart';
@@ -372,6 +373,9 @@ class _LoginScreenCredentialsState extends ConsumerState<LoginScreenCredentials>
     }
 
     if (context.mounted) {
+      await jtOfferPinAfterLogin(context, ref); // JT-HOOK: profiles
+    }
+    if (context.mounted) {
       await loggedInGoToHome(context, ref);
     }
   }
@@ -416,7 +420,8 @@ class _LoginScreenCredentialsState extends ConsumerState<LoginScreenCredentials>
       ref.read(authProvider.notifier).authenticateUsingSecret(secret),
     );
     if (response.isSuccess && context.mounted) {
-      loggedInGoToHome(context, ref);
+      await jtOfferPinAfterLogin(context, ref); // JT-HOOK: profiles
+      if (context.mounted) loggedInGoToHome(context, ref);
     }
     setState(() {
       loggingIn = false;
@@ -447,6 +452,9 @@ Future<void> _handleLogin(BuildContext context, AccountModel user, WidgetRef ref
 
   loggedInGoToHome(context, ref);
 }
+
+// JT-HOOK: profiles - de pincode is dan al gecontroleerd op "Wie kijkt er?".
+Future<void> jtLoginAccount(BuildContext context, AccountModel user, WidgetRef ref) => _handleLogin(context, user, ref);
 
 void tapLoggedInAccount(BuildContext context, AccountModel user, WidgetRef ref) async {
   Future<void> loginFunction() => _handleLogin(context, user, ref);

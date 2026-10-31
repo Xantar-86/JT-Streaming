@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:iconsax_plus/iconsax_plus.dart';
 
 import 'package:fladder/jt/jt_brand.dart';
+import 'package:fladder/jt/profiles/jt_profiles_screen.dart';
+import 'package:fladder/jt/profiles/jt_switch_profile_button.dart';
 import 'package:fladder/providers/arguments_provider.dart';
 import 'package:fladder/providers/auth_provider.dart';
 import 'package:fladder/providers/update_provider.dart';
@@ -229,6 +231,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               icon: IconsaxPlusLinear.logout,
               contentColor: Theme.of(context).colorScheme.error,
               onTap: () {
+                // JT-HOOK: profiles - uitloggen gaat terug naar "Wie kijkt er?", het profiel blijft staan.
+                // Verwijderen kan alleen via "Profielen beheren".
+                if (jtProfilesEnabled) {
+                  jtSwitchProfile(context, ref);
+                  return;
+                }
                 final user = ref.read(userProvider);
                 showDialog(
                   context: context,

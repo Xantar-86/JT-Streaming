@@ -10,21 +10,25 @@ import 'package:fladder/providers/video_player_provider.dart';
 final videoProfileProvider = StateProvider.autoDispose<DeviceProfile>((ref) =>
     defaultProfile(ref.read(videoPlayerProvider.select((value) => value.backend)) ?? PlayerOptions.platformDefaults));
 
+// JT-HOOK: native-no-avi - de ExoPlayer van Android TV leest van een AVI alleen het eerste RIFF-deel,
+// en een AVI boven 4 GB bestaat uit meerdere delen. Het minteken is een uitsluitlijst bij Jellyfin:
+// alle andere containers blijven direct spelen, een AVI gaat als HLS via de server.
 DeviceProfile defaultProfile(PlayerOptions player) => kIsWeb
     ? webProfile
-    : const DeviceProfile(
+    : DeviceProfile(
         maxStreamingBitrate: 120000000,
         maxStaticBitrate: 120000000,
         musicStreamingTranscodingBitrate: 384000,
         directPlayProfiles: [
           DirectPlayProfile(
+            container: player == PlayerOptions.nativePlayer ? '-avi' : null,
             type: DlnaProfileType.video,
           ),
-          DirectPlayProfile(
+          const DirectPlayProfile(
             type: DlnaProfileType.audio,
           )
         ],
-        transcodingProfiles: [
+        transcodingProfiles: const [
           TranscodingProfile(
             audioCodec: 'aac,mp3,mp2',
             container: 'ts',
@@ -34,8 +38,8 @@ DeviceProfile defaultProfile(PlayerOptions player) => kIsWeb
             videoCodec: 'h264',
           ),
         ],
-        containerProfiles: [],
-        subtitleProfiles: [
+        containerProfiles: const [],
+        subtitleProfiles: const [
           SubtitleProfile(format: 'vtt', method: SubtitleDeliveryMethod.$external),
           SubtitleProfile(format: 'ass', method: SubtitleDeliveryMethod.$external),
           SubtitleProfile(format: 'ssa', method: SubtitleDeliveryMethod.$external),

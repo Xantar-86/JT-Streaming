@@ -17,6 +17,7 @@ import 'package:fladder/models/account_model.dart';
 import 'package:fladder/models/credentials_model.dart';
 import 'package:fladder/providers/auth_provider.dart';
 import 'package:fladder/providers/shared_provider.dart';
+import 'package:fladder/providers/user_provider.dart';
 import 'package:fladder/screens/home_screen.dart';
 import 'package:fladder/util/adaptive_layout/adaptive_layout.dart';
 import 'package:fladder/util/adaptive_layout/adaptive_layout_model.dart';
@@ -118,7 +119,9 @@ class _FakePinStore extends JtProfilePinStore {
 Override _pinStore(JtPinRecord record) => jtProfilePinStoreProvider.overrideWith((ref) => _FakePinStore(ref, record));
 
 Future<void> _open(WidgetTester tester, Future<void> Function(BuildContext context, WidgetRef ref) action,
-    {List<Override> overrides = const [], Map<ShortcutActivator, Intent>? shortcuts}) async {
+    {List<Override> overrides = const [],
+    Map<ShortcutActivator, Intent>? shortcuts,
+    Size size = const Size(1920, 1080)}) async {
   await _pump(
     tester,
     Consumer(
@@ -126,6 +129,7 @@ Future<void> _open(WidgetTester tester, Future<void> Function(BuildContext conte
     ),
     overrides: overrides,
     shortcuts: shortcuts,
+    size: size,
   );
   await tester.tap(find.text('open'));
   await tester.pumpAndSettle();
@@ -422,6 +426,97 @@ void main() {
         expect(forgot.bottom <= size.height && forgot.top >= 0, isTrue, reason: '$forgot');
         final backspace = tester.getRect(find.bySemanticsLabel('Wissen'));
         expect(backspace.bottom <= size.height, isTrue, reason: '$backspace');
+      });
+    }
+  });
+
+  group('Mi Box-test jt.6.7', () {
+    Future<void> enter(WidgetTester tester, String pin) async {
+      for (final digit in pin.split('')) {
+        await tester.sendKeyEvent(LogicalKeyboardKey(LogicalKeyboardKey.digit0.keyId + int.parse(digit)));
+        await tester.pump();
+      }
+      await tester.pump(const Duration(milliseconds: 300));
+    }
+
+    AccountModel localLock(String name) => _account(name).copyWith(authMethod: Authentication.passcode, localPin: '1234');
+
+    testWidgets('fout 1: an old upstream lock gets our pad, 5 wrong codes = 30 s wait', (tester) async {
+      await _open(
+        tester,
+        (context, ref) => jtEnterProfile(context, ref, localLock('Jochen')),
+        overrides: [_pinStore(JtPinRecord.none)],
+      );
+      expect(find.byType(JtPinPadDialog), findsOneWidget);
+      for (var attempt = 1; attempt <= 4; attempt++) {
+        await enter(tester, '0000');
+        expect(find.text('Foute pincode, nog ${5 - attempt} pogingen'), findsOneWidget);
+      }
+      await enter(tester, '0000');
+      expect(find.textContaining('Te veel foute pogingen'), findsOneWidget);
+      await enter(tester, '1234');
+      expect(find.byType(JtPinPadDialog), findsOneWidget, reason: 'locked: even the right code is refused');
+    });
+
+    testWidgets('fout 2: "vergeten" is reachable with the D-pad before any mistake', (tester) async {
+      await _open(
+        tester,
+        (context, ref) => jtEnterProfile(context, ref, _account('Lotte')),
+        overrides: [_pinStore(JtPinRecord(JtPin.hash('1234')))],
+        size: const Size(960, 540),
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+      await tester.pumpAndSettle();
+      expect(FocusManager.instance.primaryFocus?.context?.findAncestorWidgetOfExactType<TextButton>(), isNotNull);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      expect(find.byType(TextField), findsOneWidget, reason: 'password dialog');
+    });
+
+    testWidgets('eis 5: the offer starts on "Pincode instellen", arrow left + Enter skips', (tester) async {
+      await _open(
+        tester,
+        (context, ref) => jtOfferPin(context, ref, _account('Mila')),
+        overrides: [_pinStore(JtPinRecord.none)],
+      );
+      expect(find.text('Pincode instellen voor Mila?'), findsOneWidget);
+      expect(FocusManager.instance.primaryFocus?.context?.findAncestorWidgetOfExactType<FilledButton>(), isNotNull);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      expect(find.text('Pincode instellen voor Mila?'), findsNothing);
+      expect(find.byType(JtPinPadDialog), findsNothing);
+    });
+
+    testWidgets('eis 5: "Pincode instellen" saves the code after entering it twice', (tester) async {
+      final record = _pinStore(JtPinRecord.none);
+      late JtProfilePinStore store;
+      await _open(tester, (context, ref) {
+        store = ref.read(jtProfilePinStoreProvider);
+        return jtOfferPin(context, ref, _account('Mila'));
+      }, overrides: [record]);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      await enter(tester, '2580');
+      await tester.pumpAndSettle();
+      await enter(tester, '2580');
+      await tester.pumpAndSettle();
+      expect(JtPin.verify('2580', (store as _FakePinStore).record.hash), isTrue);
+      await _letSnackExpire(tester);
+    });
+
+    for (final (name, label, stored, asked) in [
+      ('without a PIN', 'Mila', JtPinRecord.none, true),
+      ('with a PIN', 'Lotte', JtPinRecord(JtPin.hash('1234')), false),
+      ('forge-test', 'forge-test', JtPinRecord.none, false),
+    ]) {
+      testWidgets('eis 5: after login, profile $name: asked = $asked', (tester) async {
+        await _open(tester, (context, ref) async {
+          ref.read(userProvider.notifier).userState = _account(label);
+          await jtOfferPinAfterLogin(context, ref);
+        }, overrides: [_pinStore(stored)]);
+        expect(find.textContaining('Pincode instellen voor'), asked ? findsOneWidget : findsNothing);
       });
     }
   });

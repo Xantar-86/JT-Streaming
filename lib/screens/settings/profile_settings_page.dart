@@ -9,6 +9,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:fladder/jellyfin/jellyfin_open_api.enums.swagger.dart' as enums;
 import 'package:fladder/models/seerr_credentials_model.dart';
+import 'package:fladder/jt/profiles/jt_profile_flow.dart';
+import 'package:fladder/jt/profiles/jt_profile_pin_store.dart';
+import 'package:fladder/jt/profiles/jt_profiles_screen.dart';
 import 'package:fladder/providers/connectivity_provider.dart';
 import 'package:fladder/providers/cultures_provider.dart';
 import 'package:fladder/providers/home_preferences_provider.dart';
@@ -121,29 +124,41 @@ class _UserSettingsPageState extends ConsumerState<ProfileSettingsPage> with Wid
           context,
           SettingsLabelDivider(label: context.localized.settingsSecurity),
           [
-            SettingsListTile(
-              label: Text(context.localized.settingSecurityApplockTitle),
-              subLabel: Text(user?.authMethod.name(context) ?? ""),
-              onTap: () => showAuthOptionsDialogue(
-                context,
-                user!,
-                (newUser) {
-                  ref.read(userProvider.notifier).updateUser(newUser);
-                },
+            // JT-HOOK: profiles - één pincode per profiel; het upstream app-slot zou een tweede zijn,
+            // zonder wachttijd en zonder "vergeten".
+            if (jtProfilesEnabled && user != null)
+              SettingsListTile(
+                label: Text(context.localized.appLockPasscode),
+                subLabel: Text(ref.read(jtProfilePinStoreProvider).cached(user)?.hasPin == true
+                    ? context.localized.jtPinActive
+                    : context.localized.jtPinNone),
+                onTap: () => jtSetPin(context, ref, user),
+              )
+            else ...[
+              SettingsListTile(
+                label: Text(context.localized.settingSecurityApplockTitle),
+                subLabel: Text(user?.authMethod.name(context) ?? ""),
+                onTap: () => showAuthOptionsDialogue(
+                  context,
+                  user!,
+                  (newUser) {
+                    ref.read(userProvider.notifier).updateUser(newUser);
+                  },
+                ),
               ),
-            ),
-            SettingsListTileCheckbox(
-              label: Text(context.localized.profileSettingsOpenAuthAtLaunch),
-              value: user?.askForAuthOnLaunch ?? false,
-              onChanged: user?.authMethod.shouldLock == true
-                  ? (val) async {
-                      if (user == null || val == null) return;
-                      ref.read(userProvider.notifier).updateUser(
-                            user.copyWith(askForAuthOnLaunch: val),
-                          );
-                    }
-                  : null,
-            ),
+              SettingsListTileCheckbox(
+                label: Text(context.localized.profileSettingsOpenAuthAtLaunch),
+                value: user?.askForAuthOnLaunch ?? false,
+                onChanged: user?.authMethod.shouldLock == true
+                    ? (val) async {
+                        if (user == null || val == null) return;
+                        ref.read(userProvider.notifier).updateUser(
+                              user.copyWith(askForAuthOnLaunch: val),
+                            );
+                      }
+                    : null,
+              ),
+            ],
             SettingsListTile(
               label: Text(context.localized.password),
               onTap: () => openPasswordResetDialog(context),

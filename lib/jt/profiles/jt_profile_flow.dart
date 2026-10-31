@@ -9,6 +9,7 @@ import 'package:fladder/jt/profiles/jt_profile_widgets.dart';
 import 'package:fladder/models/account_model.dart';
 import 'package:fladder/providers/auth_provider.dart';
 import 'package:fladder/providers/shared_provider.dart';
+import 'package:fladder/providers/user_provider.dart';
 import 'package:fladder/screens/login/login_screen_credentials.dart';
 import 'package:fladder/screens/shared/fladder_notification_overlay.dart';
 import 'package:fladder/util/localization_helper.dart';
@@ -51,13 +52,21 @@ Future<({AccountModel account, JtPinRecord record, bool viaPassword})?> _resolve
   }
 }
 
+/// Pincode uit het oude upstream-slot (Instellingen > Profiel), lokaal en in leesbare tekst bewaard.
+String? _localPin(AccountModel account) =>
+    account.authMethod == Authentication.passcode && account.localPin.isNotEmpty ? account.localPin : null;
+
+AccountModel _withoutLocalPin(AccountModel account) => account.authMethod == Authentication.passcode
+    ? account.copyWith(authMethod: Authentication.autoLogin, localPin: '', askForAuthOnLaunch: false)
+    : account;
+
 /// Vraagt de huidige code (met "vergeten" = wachtwoord). Geeft het (eventueel vernieuwde) profiel
-/// terug als de persoon bewezen is, anders `null`.
-Future<AccountModel?> _verifyPin(
+/// terug als de persoon bewezen is, anders `null`. [viaPassword] = langs het wachtwoord bewezen.
+Future<({AccountModel account, bool viaPassword})?> _verifyPin(
   BuildContext context,
   WidgetRef ref,
   AccountModel account,
-  JtPinRecord record,
+  bool Function(String pin) matches,
   String title,
 ) async {
   final store = ref.read(jtProfilePinStoreProvider);
@@ -71,7 +80,7 @@ Future<AccountModel?> _verifyPin(
       final now = DateTime.now();
       var lock = store.lockout(account).normalize(now);
       if (lock.isLocked(now)) return context.localized.jtPinLocked(lock.remaining(now).inSeconds.toString());
-      if (JtPin.verify(pin, record.hash)) {
+      if (matches(pin)) {
         await store.resetLockout(account);
         return null;
       }
@@ -84,22 +93,72 @@ Future<AccountModel?> _verifyPin(
     },
   );
   if (!context.mounted) return null;
-  if (outcome.forgot) return jtAskPassword(context, ref, account);
-  return outcome.pin == null ? null : account;
+  if (outcome.forgot) {
+    final updated = await jtAskPassword(context, ref, account);
+    return updated == null ? null : (account: updated, viaPassword: true);
+  }
+  return outcome.pin == null ? null : (account: account, viaPassword: false);
 }
 
 /// Profiel kiezen op "Wie kijkt er?": pincode (indien ingesteld), dan inloggen met het bewaarde token.
+///
+/// Er is maar één pincode: een oud upstream-slot krijgt hetzelfde blok (met teller en "vergeten") en
+/// verhuist bij de eerste juiste code naar de server. Het upstream-blok komt hier nooit meer voor.
 Future<void> jtEnterProfile(BuildContext context, WidgetRef ref, AccountModel account) async {
   final resolved = await _resolve(context, ref, account);
   if (resolved == null || !context.mounted) return;
   var current = resolved.account;
-  if (resolved.record.hasPin && !resolved.viaPassword) {
-    final verified = await _verifyPin(context, ref, current, resolved.record, context.localized.jtPinEnter(current.name));
+  var viaPassword = resolved.viaPassword;
+  final record = resolved.record;
+  final localPin = _localPin(current);
+  var keepLocalPin = false;
+  if (!viaPassword && (record.hasPin || localPin != null)) {
+    final verified = await _verifyPin(
+      context,
+      ref,
+      current,
+      record.hasPin ? (pin) => JtPin.verify(pin, record.hash) : (pin) => pin == localPin,
+      context.localized.jtPinEnter(current.name),
+    );
     if (verified == null || !context.mounted) return;
-    current = verified;
+    current = verified.account;
+    viaPassword = verified.viaPassword;
+    if (!viaPassword && !record.hasPin) {
+      // Lukt dat niet (server weg), dan blijft het slot staan tot de volgende keer.
+      keepLocalPin = !await ref.read(jtProfilePinStoreProvider).save(current, localPin);
+      if (!context.mounted) return;
+    }
   }
-  // Upstream-afhandeling (houdt een eventueel oud lokaal slot van Fladder in stand).
-  tapLoggedInAccount(context, current, ref);
+  if (viaPassword && !record.hasPin) {
+    await jtOfferPin(context, ref, current);
+    if (!context.mounted) return;
+  }
+  if (!keepLocalPin) current = _withoutLocalPin(current);
+  if (current.authMethod == Authentication.biometrics) {
+    tapLoggedInAccount(context, current, ref);
+  } else {
+    await jtLoginAccount(context, current, ref);
+  }
+}
+
+/// Kiest en bewaart een nieuwe code (twee keer invoeren).
+Future<void> _chooseNewPin(BuildContext context, WidgetRef ref, AccountModel account) async {
+  final first = await showJtPinPad(
+    context,
+    title: context.localized.jtPinNew,
+    header: JtProfileAvatar(account: account, size: 72),
+  );
+  if (first.pin == null || !context.mounted) return;
+  final second = await showJtPinPad(
+    context,
+    title: context.localized.jtPinConfirm,
+    header: JtProfileAvatar(account: account, size: 72),
+    check: (pin) async => pin == first.pin ? null : context.localized.jtPinMismatch,
+  );
+  if (second.pin == null || !context.mounted) return;
+  final ok = await ref.read(jtProfilePinStoreProvider).save(account, second.pin);
+  if (!context.mounted) return;
+  FladderSnack.show(ok ? context.localized.jtPinSaved : context.localized.jtServerUnreachable, context: context);
 }
 
 /// Pincode instellen of wijzigen (bestaande code eerst bevestigen).
@@ -108,26 +167,60 @@ Future<void> jtSetPin(BuildContext context, WidgetRef ref, AccountModel account)
   if (resolved == null || !context.mounted) return;
   var current = resolved.account;
   if (resolved.record.hasPin && !resolved.viaPassword) {
-    final verified = await _verifyPin(context, ref, current, resolved.record, context.localized.jtPinCurrent);
+    final record = resolved.record;
+    final verified = await _verifyPin(
+      context,
+      ref,
+      current,
+      (pin) => JtPin.verify(pin, record.hash),
+      context.localized.jtPinCurrent,
+    );
     if (verified == null || !context.mounted) return;
-    current = verified;
+    current = verified.account;
   }
-  final first = await showJtPinPad(
-    context,
-    title: context.localized.jtPinNew,
-    header: JtProfileAvatar(account: current, size: 72),
+  await _chooseNewPin(context, ref, current);
+}
+
+/// Vraag na het aanmelden: "Pincode instellen" of "Overslaan". De code blijft optioneel.
+Future<void> jtOfferPin(BuildContext context, WidgetRef ref, AccountModel account) async {
+  final wanted = await showDialog<bool>(
+    context: context,
+    barrierDismissible: false,
+    builder: (context) => Shortcuts(
+      shortcuts: jtProfileArrowShortcuts,
+      child: AlertDialog(
+        title: Text(context.localized.jtPinOfferTitle(account.name)),
+        content: Text(context.localized.jtPinOfferDesc),
+        actions: [
+          JtFocusRing(
+            child: TextButton(
+              key: const ValueKey('jt-pin-offer-skip'),
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text(context.localized.jtPinSkip),
+            ),
+          ),
+          JtFocusRing(
+            child: FilledButton(
+              key: const ValueKey('jt-pin-offer-set'),
+              autofocus: true,
+              onPressed: () => Navigator.of(context).pop(true),
+              child: Text(context.localized.jtPinSet),
+            ),
+          ),
+        ],
+      ),
+    ),
   );
-  if (first.pin == null || !context.mounted) return;
-  final second = await showJtPinPad(
-    context,
-    title: context.localized.jtPinConfirm,
-    header: JtProfileAvatar(account: current, size: 72),
-    check: (pin) async => pin == first.pin ? null : context.localized.jtPinMismatch,
-  );
-  if (second.pin == null || !context.mounted) return;
-  final ok = await ref.read(jtProfilePinStoreProvider).save(current, second.pin);
+  if (wanted == true && context.mounted) await _chooseNewPin(context, ref, account);
+}
+
+/// Na een nieuwe aanmelding op de aanmeldpagina: alleen vragen als de server zegt dat er geen code is.
+Future<void> jtOfferPinAfterLogin(BuildContext context, WidgetRef ref) async {
+  final account = ref.read(userProvider);
+  if (account == null || jtVisibleProfiles([account]).isEmpty) return;
+  final fetch = await ref.read(jtProfilePinStoreProvider).fetch(account);
   if (!context.mounted) return;
-  FladderSnack.show(ok ? context.localized.jtPinSaved : context.localized.jtServerUnreachable, context: context);
+  if (fetch is JtPinFetched && !fetch.record.hasPin) await jtOfferPin(context, ref, account);
 }
 
 /// Pincode weghalen (huidige code of wachtwoord vereist).
@@ -140,9 +233,16 @@ Future<void> jtRemovePin(BuildContext context, WidgetRef ref, AccountModel accou
   }
   var current = resolved.account;
   if (!resolved.viaPassword) {
-    final verified = await _verifyPin(context, ref, current, resolved.record, context.localized.jtPinCurrent);
+    final record = resolved.record;
+    final verified = await _verifyPin(
+      context,
+      ref,
+      current,
+      (pin) => JtPin.verify(pin, record.hash),
+      context.localized.jtPinCurrent,
+    );
     if (verified == null || !context.mounted) return;
-    current = verified;
+    current = verified.account;
   }
   final ok = await ref.read(jtProfilePinStoreProvider).save(current, null);
   if (!context.mounted) return;
