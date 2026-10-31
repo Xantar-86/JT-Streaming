@@ -440,7 +440,7 @@ Per conflict:
 Daarna:
 
 ```powershell
-git grep -c "JT-HOOK" -- lib ":!lib/jt"   # verwacht: 66 regels in 31 bestanden (stand jt.6.7: + profiles)
+git grep -c "JT-HOOK" -- lib ":!lib/jt"   # verwacht: 67 regels in 32 bestanden (stand na 58fc5db2: + profiles in shared_provider.dart)
 git grep -c "JT-PATCH" -- third_party ":!*.md"   # verwacht: 9 regels in 2 bestanden (stand jt.3)
 flutter analyze
 flutter test
