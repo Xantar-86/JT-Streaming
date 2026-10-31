@@ -136,9 +136,12 @@ class VideoPlayerNotifier extends StateNotifier<MediaControlsWrapper> {
     }
   }
 
-  Future<bool> loadPlaybackItem(PlaybackModel model, Duration startPosition) async {
+  /// [isCancelled] tells whether the load was given up, its stream is closed by then.
+  Future<bool> loadPlaybackItem(PlaybackModel model, Duration startPosition, {bool Function()? isCancelled}) async {
     ref.read(playBackModel)?.dispose();
     await state.stopBeforeLoad();
+    final effectiveStartPosition = await model.resolvedStartPosition(startPosition);
+    if (isCancelled?.call() ?? false) return false;
     ref.read(playbackRateProvider.notifier).state = 1.0;
 
     final useMinimizedPlayer =
@@ -154,17 +157,17 @@ class VideoPlayerNotifier extends StateNotifier<MediaControlsWrapper> {
 
     final media = model.media;
     PlaybackModel? newPlaybackModel = model;
-    final effectiveStartPosition = await model.resolvedStartPosition(startPosition);
 
     if (media != null) {
       ref.read(playBackModel.notifier).update((state) => newPlaybackModel);
       await state.loadVideo(model, effectiveStartPosition, true);
       // Stopped while loading.
-      if (ref.read(playBackModel) == null) return false;
+      if (state.isStopped) return false;
       await state.setVolume(ref.read(videoPlayerSettingsProvider).volume);
 
       await state.setAudioTrack(null, model);
       await state.setSubtitleTrack(null, model);
+      if (state.isStopped) return false;
 
       ref.read(mediaPlaybackProvider.notifier).update((state) => state.copyWith(
             state: useMinimizedPlayer ? VideoPlayerState.minimized : VideoPlayerState.fullScreen,

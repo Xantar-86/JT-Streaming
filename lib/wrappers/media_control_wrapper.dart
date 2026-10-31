@@ -51,6 +51,7 @@ class MediaControlsWrapper extends BaseAudioHandler implements VideoPlayerContro
   StreamSubscription<PlayerState>? _playerStateSubscription;
 
   bool get hasPlayer => _player != null;
+  bool get isStopped => _isStopped;
 
   PlayerOptions? get backend => switch (_player) {
         LibMPV _ => PlayerOptions.libMPV,

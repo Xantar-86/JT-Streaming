@@ -8,7 +8,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:fladder/jellyfin/jellyfin_open_api.swagger.dart';
-import 'package:fladder/jt/web/jt_keepalive_stub.dart' if (dart.library.js_interop) 'package:fladder/jt/web/jt_keepalive_web.dart';
+import 'package:fladder/jt/web/jt_keepalive_stub.dart' if (dart.library.js_interop) 'package:fladder/jt/web/jt_keepalive_web.dart'; // JT-HOOK: live-keepalive
 import 'package:fladder/models/item_base_model.dart';
 import 'package:fladder/models/items/channel_model.dart';
 import 'package:fladder/models/items/channel_program.dart';
@@ -45,7 +45,7 @@ class TvPlaybackModel extends PlaybackModel {
   static void resetClosedLiveStreams() => _closedLiveStreams.clear();
 
   @visibleForTesting
-  static bool Function(String url, Map<String, String> headers, String? body) postKeepalive = jtPostKeepalive;
+  static bool Function(String url, Map<String, String> headers, String? body) postKeepalive = jtPostKeepalive; // JT-HOOK: live-keepalive
 
   final ChannelModel channel;
 

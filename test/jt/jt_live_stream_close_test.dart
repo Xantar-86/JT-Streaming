@@ -260,11 +260,10 @@ void main() {
       final playing = model(liveStreamId: 'same', playSessionId: 'playing');
       container.read(playBackModel.notifier).state = playing;
 
-      await helper.closeAbandonedStream(Future.value(playing));
-      expect(service.calls, isEmpty);
-
       await helper.closeAbandonedStream(Future.value(model(liveStreamId: 'same', playSessionId: 'late')));
+
       expect(service.calls, ['stopped']);
+      expect(container.read(playBackModel), same(playing));
     });
 
     test('a stop while the stream opens closes that stream', () async {
@@ -297,7 +296,7 @@ class _FakePlayer extends VideoPlayerNotifier {
   final _FakeService service;
 
   @override
-  Future<bool> loadPlaybackItem(PlaybackModel model, Duration startPosition) async {
+  Future<bool> loadPlaybackItem(PlaybackModel model, Duration startPosition, {bool Function()? isCancelled}) async {
     service.calls.add('load:${(model as TvPlaybackModel).liveStreamId}');
     ref.read(playBackModel.notifier).state = model;
     return true;
