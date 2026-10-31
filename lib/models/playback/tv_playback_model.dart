@@ -41,6 +41,9 @@ class TvPlaybackModel extends PlaybackModel {
   static final Map<String, Future<void>> _closedLiveStreams = {};
   static const _closeTimeout = Duration(seconds: 3);
 
+  /// Jellyfin was measured at 2 to 4 seconds for a stop, and the next stream needs its connection.
+  static const _stopWait = Duration(seconds: 10);
+
   @visibleForTesting
   static void resetClosedLiveStreams() => _closedLiveStreams.clear();
 
@@ -313,14 +316,20 @@ class TvPlaybackModel extends PlaybackModel {
 
   /// Reports the stop, which closes the stream on the server. The IPTV subscription
   /// allows one connection, so a stream left open blocks all other playback.
-  /// Jellyfin counts viewers per stream: only a stop that never got there needs an
-  /// explicit close, on top of a delivered stop it cuts off the other viewer.
+  /// Jellyfin counts viewers per stream: only a stop that failed needs an explicit
+  /// close, on top of a delivered stop it cuts off the other viewer. No answer yet is
+  /// not a failure: [_stopWait] only limits how long the caller waits, the request
+  /// runs on and a late failure still closes the stream.
+  /// A server that never answers while the connection stays up gets no close. That
+  /// stream stays open, which is rare, a close after every slow stop is not.
   Future<void> closeLiveStream(Ref ref) {
     final id = liveStreamId;
-    if (id == null) return _reportStopped(ref);
-    return _closedLiveStreams[_closeKey(id)] ??= _reportStopped(ref).then((delivered) async {
-      if (!delivered) await _closeOnServer(ref, id);
-    });
+    if (id == null) return _reportStopped(ref).timeout(_stopWait, onTimeout: () => false);
+    return _closedLiveStreams[_closeKey(id)] ??= _stopOrClose(ref, id).timeout(_stopWait, onTimeout: () {});
+  }
+
+  Future<void> _stopOrClose(Ref ref, String id) async {
+    if (!await _reportStopped(ref)) await _closeOnServer(ref, id);
   }
 
   /// Regular requests die with the page, these are sent with fetch keepalive.
@@ -355,8 +364,7 @@ class TvPlaybackModel extends PlaybackModel {
   /// Whether the server got the stop. In incognito [JellyService] answers it itself.
   Future<bool> _reportStopped(Ref ref) async {
     try {
-      final response =
-          await ref.read(jellyApiProvider).sessionsPlayingStoppedPost(body: _stopInfo).timeout(_closeTimeout);
+      final response = await ref.read(jellyApiProvider).sessionsPlayingStoppedPost(body: _stopInfo);
       return response.isSuccessful && !ref.read(incognitoProvider);
     } catch (e, stackTrace) {
       log('Failed to report live tv stop: $e', stackTrace: stackTrace);

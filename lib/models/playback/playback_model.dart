@@ -217,6 +217,10 @@ class PlaybackModelHelper {
     final currentModel = ref.read(playBackModel);
     if (request != _channelRequest || currentModel == null) return;
 
+    // A slow stop isn't a channel that fails to open, keep it out of the time-out below.
+    await ref.read(videoPlayerProvider).releaseLiveStream();
+    if (request != _channelRequest || ref.read(playBackModel) == null) return;
+
     final opening = createPlaybackModel(
       null,
       channel,
