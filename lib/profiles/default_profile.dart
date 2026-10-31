@@ -46,3 +46,7 @@ DeviceProfile defaultProfile(PlayerOptions player) => kIsWeb
           SubtitleProfile(format: 'pgssub', method: SubtitleDeliveryMethod.$external),
         ],
       );
+
+// JT-HOOK: native-no-avi - een download zonder transcoderen blijft het originele bestand, dus ook een
+// AVI. Met het afspeelprofiel zou Jellyfin hier HLS aanbieden, en dan komt master.m3u8 in het .avi-bestand.
+final DeviceProfile jtDownloadProfile = defaultProfile(PlayerOptions.libMPV);

@@ -27,4 +27,14 @@ void main() {
     expect(transcode.videoCodec, 'h264');
     expect(transcode.audioCodec, contains('mp3'));
   });
+
+  test('een download blijft het originele bestand: geen AVI-uitsluiting, wel dezelfde rest', () {
+    final video = jtDownloadProfile.directPlayProfiles!.firstWhere((p) => p.type == DlnaProfileType.video);
+    expect(video.container, isNull);
+    expect(
+      jtDownloadProfile.toJson(),
+      defaultProfile(PlayerOptions.libMPV).toJson(),
+      reason: 'zelfde vraag als jt.6.7, waarop de server DirectPlay=True antwoordt',
+    );
+  });
 }

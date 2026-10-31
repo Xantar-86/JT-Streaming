@@ -99,6 +99,7 @@ class _FakePinStore extends JtProfilePinStore {
   _FakePinStore(super.ref, this.record);
 
   JtPinRecord record;
+  bool serverUp = true;
 
   @override
   Future<JtPinFetch> fetch(AccountModel account) async => JtPinFetched(record);
@@ -108,12 +109,14 @@ class _FakePinStore extends JtProfilePinStore {
 
   @override
   Future<bool> save(AccountModel account, String? pin) async {
+    if (!serverUp) return false;
     record = pin == null ? JtPinRecord.none : JtPinRecord(JtPin.hash(pin));
     return true;
   }
 
   @override
-  Future<AccountModel?> reauthenticate(AccountModel account, String password) async => null;
+  Future<AccountModel?> reauthenticate(AccountModel account, String password) async =>
+      password == 'juist' ? account : null;
 }
 
 Override _pinStore(JtPinRecord record) => jtProfilePinStoreProvider.overrideWith((ref) => _FakePinStore(ref, record));
@@ -519,5 +522,132 @@ void main() {
         expect(find.textContaining('Pincode instellen voor'), asked ? findsOneWidget : findsNothing);
       });
     }
+  });
+
+  group('Nacontrole jt.6.8, B7: oud slot in Profielen beheren', () {
+    final locked = _account('Jochen').copyWith(authMethod: Authentication.passcode, localPin: '4321');
+    late SharedHelper shared;
+    late _FakePinStore store;
+
+    Future<void> digits(WidgetTester tester, String pin) async {
+      for (final digit in pin.split('')) {
+        await tester.sendKeyEvent(LogicalKeyboardKey(LogicalKeyboardKey.digit0.keyId + int.parse(digit)));
+        await tester.pump();
+      }
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> start(WidgetTester tester, Future<void> Function(BuildContext, WidgetRef, AccountModel) action) =>
+        _open(tester, (context, ref) async {
+          shared = ref.read(sharedUtilityProvider);
+          store = ref.read(jtProfilePinStoreProvider) as _FakePinStore;
+          await shared.saveAccounts([locked]);
+          await action(context, ref, locked);
+        }, overrides: [_pinStore(JtPinRecord.none)]);
+
+    void expectStillLocked() {
+      final saved = shared.getAccounts().single;
+      expect(saved.authMethod, Authentication.passcode);
+      expect(saved.localPin, '4321');
+      expect(store.record.hasPin, isFalse);
+    }
+
+    void expectMovedTo(String pin) {
+      final saved = shared.getAccounts().single;
+      expect(saved.authMethod, Authentication.autoLogin);
+      expect(saved.localPin, isEmpty);
+      expect(saved.lastUsed, locked.lastUsed, reason: 'the focus starts on the last used profile: not changed by this');
+      expect(JtPin.verify(pin, store.record.hash), isTrue);
+    }
+
+    testWidgets('set: without the old code there is no new code', (tester) async {
+      await start(tester, jtSetPin);
+      expect(find.text('Voer de huidige pincode in'), findsOneWidget);
+      await digits(tester, '9999');
+      expect(find.text('Foute pincode, nog 4 pogingen'), findsOneWidget);
+      expect(find.text('Kies een pincode van 4 cijfers'), findsNothing);
+      expectStillLocked();
+    });
+
+    testWidgets('set: the right old code moves the lock to the new code', (tester) async {
+      await start(tester, jtSetPin);
+      await digits(tester, '4321');
+      await digits(tester, '9999');
+      await digits(tester, '9999');
+      expectMovedTo('9999');
+      await _letSnackExpire(tester);
+    });
+
+    testWidgets('set: "vergeten" takes the password, then the lock moves too', (tester) async {
+      await start(tester, jtSetPin);
+      await tester.tap(find.text('Pincode vergeten? Log in met je wachtwoord'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'juist');
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+      await digits(tester, '9999');
+      await digits(tester, '9999');
+      expectMovedTo('9999');
+      await _letSnackExpire(tester);
+    });
+
+    testWidgets('set: the lock stays when the new code cannot be saved', (tester) async {
+      await start(tester, (context, ref, account) {
+        store.serverUp = false;
+        return jtSetPin(context, ref, account);
+      });
+      await digits(tester, '4321');
+      await digits(tester, '9999');
+      await digits(tester, '9999');
+      expectStillLocked();
+      await _letSnackExpire(tester);
+    });
+
+    testWidgets('set: the lock stays when choosing a new code is cancelled', (tester) async {
+      await start(tester, jtSetPin);
+      await digits(tester, '4321');
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expectStillLocked();
+    });
+
+    testWidgets('remove: asks the old code first and leaves no lock', (tester) async {
+      await start(tester, jtRemovePin);
+      await digits(tester, '0000');
+      expect(find.text('Foute pincode, nog 4 pogingen'), findsOneWidget);
+      expectStillLocked();
+      await digits(tester, '4321');
+      final saved = shared.getAccounts().single;
+      expect(saved.authMethod, Authentication.autoLogin);
+      expect(saved.localPin, isEmpty);
+      await _letSnackExpire(tester);
+    });
+
+    testWidgets('remove: an old lock needs no server', (tester) async {
+      await start(tester, (context, ref, account) {
+        store.serverUp = false;
+        return jtRemovePin(context, ref, account);
+      });
+      await digits(tester, '4321');
+      expect(shared.getAccounts().single.localPin, isEmpty);
+      expect(find.text('Pincode weggehaald'), findsOneWidget);
+      await _letSnackExpire(tester);
+    });
+
+    testWidgets('manage: shows "Met pincode", and "Geen pincode" once the lock is gone', (tester) async {
+      await start(tester, (context, ref, account) async {
+        ref.read(authProvider.notifier).getSavedAccounts();
+        await showJtManageProfiles(context);
+      });
+      expect(find.text('Met pincode'), findsOneWidget);
+      expect(find.text('Pincode wijzigen'), findsOneWidget);
+      await tester.tap(find.text('Pincode weghalen'));
+      await tester.pumpAndSettle();
+      await digits(tester, '4321');
+      expect(find.text('Geen pincode'), findsOneWidget);
+      expect(find.text('Pincode instellen'), findsOneWidget);
+      await _letSnackExpire(tester);
+    });
   });
 }
