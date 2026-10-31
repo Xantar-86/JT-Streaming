@@ -138,7 +138,7 @@ class VideoPlayerNotifier extends StateNotifier<MediaControlsWrapper> {
 
   Future<bool> loadPlaybackItem(PlaybackModel model, Duration startPosition) async {
     ref.read(playBackModel)?.dispose();
-    await state.stop();
+    await state.stopBeforeLoad();
     ref.read(playbackRateProvider.notifier).state = 1.0;
 
     final useMinimizedPlayer =
@@ -159,6 +159,8 @@ class VideoPlayerNotifier extends StateNotifier<MediaControlsWrapper> {
     if (media != null) {
       ref.read(playBackModel.notifier).update((state) => newPlaybackModel);
       await state.loadVideo(model, effectiveStartPosition, true);
+      // Stopped while loading.
+      if (ref.read(playBackModel) == null) return false;
       await state.setVolume(ref.read(videoPlayerSettingsProvider).volume);
 
       await state.setAudioTrack(null, model);
