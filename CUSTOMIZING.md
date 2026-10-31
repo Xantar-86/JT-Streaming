@@ -203,7 +203,7 @@ Jellyfin-beheerders) kan de code terugrekenen. Het is een gezinsslot, geen bevei
 De app vraagt nooit de gebruikerslijst op (`/Users/Public`); de server wordt pas aangesproken bij het
 kiezen of toevoegen van een profiel. Hooks: `// JT-HOOK: profiles` in `auth_provider.dart` (4),
 `splash_screen.dart`, `login_screen.dart` (2), `app_bootstrap.dart`, `side_navigation_bar.dart`,
-`navigation_drawer.dart`. Tests: `test/jt/profiles/` (de live-proef draait alleen met
+`navigation_drawer.dart`, `shared_provider.dart`. Tests: `test/jt/profiles/` (de live-proef draait alleen met
 `JELLYFIN_FORGE_TEST`).
 
 ### Hooks in upstream-bestanden
