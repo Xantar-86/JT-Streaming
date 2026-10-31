@@ -181,9 +181,13 @@ Future<bool> jtRemoveProfile(BuildContext context, WidgetRef ref, AccountModel a
     ),
   );
   if (confirmed != true) return false;
-  await ref.read(sharedUtilityProvider).removeAccount(account);
-  await ref.read(jtProfilePinStoreProvider).forget(account);
-  ref.read(authProvider.notifier).getSavedAccounts();
+  // De afmelding kan 8 s duren en de dialoog kan intussen sluiten: `ref` is dan niet meer bruikbaar.
+  final shared = ref.read(sharedUtilityProvider);
+  final store = ref.read(jtProfilePinStoreProvider);
+  final auth = ref.read(authProvider.notifier);
+  await shared.removeAccount(account);
+  await store.forget(account);
+  auth.getSavedAccounts();
   return true;
 }
 
