@@ -656,11 +656,10 @@ class SyncNotifier extends StateNotifier<SyncSettingsModel> {
     final transcodeEnabled = isAudioItem ? effectiveMusicTranscodeModel.enabled : effectiveTranscodeModel.enabled;
     final maxBitrate =
         isAudioItem ? effectiveMusicTranscodeModel.maxBitrate.bitRate : effectiveTranscodeModel.maxBitrate.bitRate;
+    // JT-HOOK: native-no-avi
     final deviceProfile = isAudioItem
-        ? (effectiveMusicTranscodeModel.enabled
-            ? effectiveMusicTranscodeModel.deviceProfile
-            : ref.read(videoProfileProvider))
-        : (effectiveTranscodeModel.enabled ? effectiveTranscodeModel.deviceProfile : ref.read(videoProfileProvider));
+        ? (effectiveMusicTranscodeModel.enabled ? effectiveMusicTranscodeModel.deviceProfile : jtDownloadProfile)
+        : (effectiveTranscodeModel.enabled ? effectiveTranscodeModel.deviceProfile : jtDownloadProfile);
 
     final playbackResponse = await FladderSnack.showResponse(
       api

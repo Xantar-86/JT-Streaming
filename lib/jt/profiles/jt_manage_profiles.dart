@@ -171,12 +171,12 @@ class _JtManageProfilesDialogState extends ConsumerState<_JtManageProfilesDialog
 
   Widget _profileRow(BuildContext context, AccountModel account, JtProfilePinStore store, {bool autofocus = false}) {
     final cached = store.cached(account);
-    final status = switch (cached?.hasPin) {
-      true => context.localized.jtPinActive,
-      false => context.localized.jtPinNone,
-      null => '',
-    };
-    final hasPin = cached?.hasPin ?? false;
+    final hasPin = (cached?.hasPin ?? false) || jtHasLocalPin(account);
+    final status = hasPin
+        ? context.localized.jtPinActive
+        : cached == null
+            ? ''
+            : context.localized.jtPinNone;
     return Card(
       margin: EdgeInsets.zero,
       child: Padding(

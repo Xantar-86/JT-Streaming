@@ -20,9 +20,11 @@ const Set<String> jtHiddenProfiles = {'forge-test'};
 List<AccountModel> jtVisibleProfiles(List<AccountModel> accounts) =>
     accounts.where((a) => !jtHiddenProfiles.contains(a.name.trim().toLowerCase())).toList();
 
+typedef _Resolved = ({AccountModel account, JtPinRecord record, bool viaPassword});
+
 /// Haalt de actuele stand op; bij een verlopen token eerst het wachtwoord.
 /// `null` = niet verder (geannuleerd of server onbereikbaar zonder lokale kopie).
-Future<({AccountModel account, JtPinRecord record, bool viaPassword})?> _resolve(
+Future<_Resolved?> _resolve(
   BuildContext context,
   WidgetRef ref,
   AccountModel account,
@@ -59,6 +61,24 @@ String? _localPin(AccountModel account) =>
 AccountModel _withoutLocalPin(AccountModel account) => account.authMethod == Authentication.passcode
     ? account.copyWith(authMethod: Authentication.autoLogin, localPin: '', askForAuthOnLaunch: false)
     : account;
+
+bool jtHasLocalPin(AccountModel account) => _localPin(account) != null;
+
+bool Function(String pin) _pinMatcher(JtPinRecord record, String? localPin) =>
+    record.hasPin ? (pin) => JtPin.verify(pin, record.hash) : (pin) => pin == localPin;
+
+/// Haalt het oude slot van dit toestel, zonder "laatst gebruikt" te verzetten. De providers worden
+/// meteen gelezen: na een trage server-oproep is `ref` misschien niet meer bruikbaar.
+Future<void> Function(AccountModel account) _localPinRemover(WidgetRef ref) {
+  final shared = ref.read(sharedUtilityProvider);
+  final auth = ref.read(authProvider.notifier);
+  return (account) async {
+    if (!jtHasLocalPin(account)) return;
+    final cleared = _withoutLocalPin(account);
+    await shared.saveAccounts([for (final a in shared.getAccounts()) a.sameIdentity(cleared) ? cleared : a]);
+    auth.getSavedAccounts();
+  };
+}
 
 /// Vraagt de huidige code (met "vergeten" = wachtwoord). Geeft het (eventueel vernieuwde) profiel
 /// terug als de persoon bewezen is, anders `null`. [viaPassword] = langs het wachtwoord bewezen.
@@ -117,7 +137,7 @@ Future<void> jtEnterProfile(BuildContext context, WidgetRef ref, AccountModel ac
       context,
       ref,
       current,
-      record.hasPin ? (pin) => JtPin.verify(pin, record.hash) : (pin) => pin == localPin,
+      _pinMatcher(record, localPin),
       context.localized.jtPinEnter(current.name),
     );
     if (verified == null || !context.mounted) return;
@@ -156,28 +176,33 @@ Future<void> _chooseNewPin(BuildContext context, WidgetRef ref, AccountModel acc
     check: (pin) async => pin == first.pin ? null : context.localized.jtPinMismatch,
   );
   if (second.pin == null || !context.mounted) return;
+  final removeLocalPin = _localPinRemover(ref);
   final ok = await ref.read(jtProfilePinStoreProvider).save(account, second.pin);
+  if (ok) await removeLocalPin(account);
   if (!context.mounted) return;
   FladderSnack.show(ok ? context.localized.jtPinSaved : context.localized.jtServerUnreachable, context: context);
+}
+
+/// Bevestigt de bestaande code, ook die van een oud slot. Het (eventueel vernieuwde) profiel, of `null`.
+Future<AccountModel?> _confirmCurrentPin(BuildContext context, WidgetRef ref, _Resolved resolved) async {
+  final localPin = _localPin(resolved.account);
+  if (resolved.viaPassword || !(resolved.record.hasPin || localPin != null)) return resolved.account;
+  final verified = await _verifyPin(
+    context,
+    ref,
+    resolved.account,
+    _pinMatcher(resolved.record, localPin),
+    context.localized.jtPinCurrent,
+  );
+  return verified?.account;
 }
 
 /// Pincode instellen of wijzigen (bestaande code eerst bevestigen).
 Future<void> jtSetPin(BuildContext context, WidgetRef ref, AccountModel account) async {
   final resolved = await _resolve(context, ref, account);
   if (resolved == null || !context.mounted) return;
-  var current = resolved.account;
-  if (resolved.record.hasPin && !resolved.viaPassword) {
-    final record = resolved.record;
-    final verified = await _verifyPin(
-      context,
-      ref,
-      current,
-      (pin) => JtPin.verify(pin, record.hash),
-      context.localized.jtPinCurrent,
-    );
-    if (verified == null || !context.mounted) return;
-    current = verified.account;
-  }
+  final current = await _confirmCurrentPin(context, ref, resolved);
+  if (current == null || !context.mounted) return;
   await _chooseNewPin(context, ref, current);
 }
 
@@ -227,24 +252,17 @@ Future<void> jtOfferPinAfterLogin(BuildContext context, WidgetRef ref) async {
 Future<void> jtRemovePin(BuildContext context, WidgetRef ref, AccountModel account) async {
   final resolved = await _resolve(context, ref, account);
   if (resolved == null || !context.mounted) return;
-  if (!resolved.record.hasPin) {
+  final onServer = resolved.record.hasPin;
+  if (!onServer && !jtHasLocalPin(resolved.account)) {
     FladderSnack.show(context.localized.jtPinNone, context: context);
     return;
   }
-  var current = resolved.account;
-  if (!resolved.viaPassword) {
-    final record = resolved.record;
-    final verified = await _verifyPin(
-      context,
-      ref,
-      current,
-      (pin) => JtPin.verify(pin, record.hash),
-      context.localized.jtPinCurrent,
-    );
-    if (verified == null || !context.mounted) return;
-    current = verified.account;
-  }
-  final ok = await ref.read(jtProfilePinStoreProvider).save(current, null);
+  final current = await _confirmCurrentPin(context, ref, resolved);
+  if (current == null || !context.mounted) return;
+  final removeLocalPin = _localPinRemover(ref);
+  // Een oud slot staat alleen op dit toestel: daarvoor is de server niet nodig.
+  final ok = !onServer || await ref.read(jtProfilePinStoreProvider).save(current, null);
+  if (ok) await removeLocalPin(current);
   if (!context.mounted) return;
   FladderSnack.show(ok ? context.localized.jtPinRemoved : context.localized.jtServerUnreachable, context: context);
 }

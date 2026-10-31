@@ -216,7 +216,8 @@ kiezen of toevoegen van een profiel. Hooks: `// JT-HOOK: profiles` in `auth_prov
 **AVI op Android TV.** `// JT-HOOK: native-no-avi` in `lib/profiles/default_profile.dart`: de ExoPlayer van
 Android TV speelt AVI niet direct (`container: '-avi'`, een uitsluitlijst bij Jellyfin), de server levert
 die als HLS. Media3 `AviExtractor` leest alleen het eerste `movi`-deel en kent de FourCC's `x264`/`X264` niet.
-Windows en web veranderen niet.
+Windows en web veranderen niet. Een download blijft het originele bestand: `lib/providers/sync_provider.dart`
+gebruikt daarvoor `jtDownloadProfile`, zonder die uitsluiting.
 
 ### Hooks in upstream-bestanden
 
@@ -454,7 +455,7 @@ Per conflict:
 Daarna:
 
 ```powershell
-git grep -c "JT-HOOK" -- lib ":!lib/jt"   # verwacht: 77 regels in 37 bestanden (stand jt.6.8: profiles uitgebreid, + live-keepalive, + native-no-avi)
+git grep -c "JT-HOOK" -- lib ":!lib/jt"   # verwacht: 79 regels in 38 bestanden (stand jt.6.9: profiles uitgebreid, + live-keepalive, + native-no-avi)
 git grep -c "JT-PATCH" -- third_party ":!*.md"   # verwacht: 9 regels in 2 bestanden (stand jt.3)
 flutter analyze
 flutter test
