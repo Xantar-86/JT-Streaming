@@ -10,6 +10,7 @@ import 'package:fladder/jt/dvr/jt_program_dialog.dart';
 import 'package:fladder/jt/dvr/jt_recordings_provider.dart';
 import 'package:fladder/jt/dvr/jt_timers_provider.dart';
 import 'package:fladder/jt/guide/jt_guide_keys.dart';
+import 'package:fladder/jt/profiles/jt_profile_widgets.dart';
 import 'package:fladder/util/adaptive_layout/adaptive_layout.dart';
 import 'package:fladder/util/localization_helper.dart';
 
@@ -116,7 +117,9 @@ class _JtScheduledList extends ConsumerWidget {
     return ListView(
       children: [
         // The first focus: inside the Shortcuts, above the first button, Enter does nothing here.
-        Focus(autofocus: true, child: Text(l10n.jtDvrFinished, style: theme.textTheme.titleLarge)),
+        _JtFocusFrame(
+          child: Focus(autofocus: true, child: Text(l10n.jtDvrFinished, style: theme.textTheme.titleLarge)),
+        ),
         ...recordings.when(
           loading: () => const [
             Padding(
@@ -144,7 +147,7 @@ class _JtScheduledList extends ConsumerWidget {
           if (state.series.isNotEmpty) ...[
             Text(l10n.jtDvrSeriesHeader, style: theme.textTheme.titleLarge),
             ...state.series.map(
-              (series) => ListTile(
+              (series) => _JtFocusRow(
                 leading: const Icon(Icons.fiber_smart_record, color: Colors.red),
                 title: Text(series.name ?? ''),
                 subtitle: Text([
@@ -155,12 +158,12 @@ class _JtScheduledList extends ConsumerWidget {
                     minutes(series.postPaddingSeconds),
                   ),
                 ].where((s) => s.isNotEmpty).join(' · ')),
-                trailing: ElevatedButton(
-                  onPressed: series.id == null
-                      ? null
-                      : () => jtCancelSeriesWithConfirm(context, container, series.id!, series.name ?? ''),
-                  child: Text(l10n.jtDvrCancelSeries),
-                ),
+                action: series.id == null
+                    ? null
+                    : ElevatedButton(
+                        onPressed: () => jtCancelSeriesWithConfirm(context, container, series.id!, series.name ?? ''),
+                        child: Text(l10n.jtDvrCancelSeries),
+                      ),
               ),
             ),
             const Divider(),
@@ -184,7 +187,7 @@ class _JtScheduledList extends ConsumerWidget {
                   RecordingStatus.$new || null => l10n.jtDvrStatusScheduled,
                   final other => other.value ?? l10n.jtDvrStatusScheduled,
                 };
-                return ListTile(
+                return _JtFocusRow(
                   leading: (timer.seriesTimerId?.isNotEmpty ?? false)
                       ? const Icon(Icons.fiber_smart_record)
                       : const Icon(Icons.fiber_manual_record_outlined),
@@ -196,7 +199,7 @@ class _JtScheduledList extends ConsumerWidget {
                       style: running ? const TextStyle(color: Colors.red, fontWeight: FontWeight.bold) : null,
                     ),
                   ])),
-                  trailing: ElevatedButton(
+                  action: ElevatedButton(
                     onPressed: () => jtCancelTimerWithConfirm(context, container, timer),
                     child: Text(running ? l10n.jtDvrStopRecording : l10n.jtDvrCancelRecording),
                   ),
@@ -210,6 +213,53 @@ class _JtScheduledList extends ConsumerWidget {
   }
 }
 
+/// The ring around the focus inside [child]. It keeps all of [child] on screen:
+/// the focus traversal only scrolls the focused node into view, which cuts off
+/// the ring and the lines of a row around its button.
+class _JtFocusFrame extends StatelessWidget {
+  final Widget child;
+  const _JtFocusFrame({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Focus(
+      canRequestFocus: false,
+      skipTraversal: true,
+      onFocusChange: (focused) {
+        if (!focused) return;
+        for (final policy in const [
+          ScrollPositionAlignmentPolicy.keepVisibleAtEnd,
+          ScrollPositionAlignmentPolicy.keepVisibleAtStart,
+        ]) {
+          Scrollable.ensureVisible(context, alignmentPolicy: policy);
+        }
+      },
+      child: JtFocusRing(radius: const BorderRadius.all(Radius.circular(12)), child: child),
+    );
+  }
+}
+
+/// A row with one focus stop for the D-pad: its button, or the row itself when
+/// there is no button, so a list without buttons keeps scrolling. The tile stays
+/// traditional: in directional mode its InkWell always takes the focus, also
+/// without onTap, and the button inside it cannot be reached (ink_well.dart).
+class _JtFocusRow extends StatelessWidget {
+  final Widget leading;
+  final Widget title;
+  final Widget subtitle;
+  final Widget? action;
+  const _JtFocusRow({required this.leading, required this.title, required this.subtitle, this.action});
+
+  @override
+  Widget build(BuildContext context) {
+    final tile = MediaQuery(
+      data: MediaQuery.of(context).copyWith(navigationMode: NavigationMode.traditional),
+      child: ListTile(leading: leading, title: title, subtitle: subtitle, trailing: action),
+    );
+    return _JtFocusFrame(child: action == null ? Focus(child: tile) : tile);
+  }
+}
+
 class _JtRecordingTile extends StatelessWidget {
   final BaseItemDto recording;
   const _JtRecordingTile({required this.recording});
@@ -220,7 +270,7 @@ class _JtRecordingTile extends StatelessWidget {
     final running = jtRecordingRunning(recording);
     final title = jtRecordingTitle(recording);
     final minutes = ((recording.runTimeTicks ?? 0) / 600000000).round();
-    return ListTile(
+    return _JtFocusRow(
       leading: running ? const Icon(Icons.fiber_manual_record, color: Colors.red) : const Icon(Icons.movie_outlined),
       title: Text(title),
       subtitle: Text([
@@ -229,7 +279,7 @@ class _JtRecordingTile extends StatelessWidget {
         if (jtRecordingDate(recording) case final date?) date,
         if (running) l10n.jtDvrInProgress else if (minutes > 0) '$minutes min',
       ].join(' · ')),
-      trailing: jtCanDeleteRecording(recording)
+      action: jtCanDeleteRecording(recording)
           ? ElevatedButton(
               onPressed: () => jtDeleteRecordingWithConfirm(
                 context,

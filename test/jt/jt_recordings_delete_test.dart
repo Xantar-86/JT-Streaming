@@ -111,9 +111,12 @@ class _FakeUser extends User {
       );
 }
 
-class _EmptyTimers extends JtTimers {
+class _Timers extends JtTimers {
+  _Timers(this.initial);
+  final JtTimersState initial;
+
   @override
-  Future<JtTimersState> build() async => JtTimersState.empty;
+  Future<JtTimersState> build() async => initial;
 }
 
 BaseItemDto _recording(String id, {bool? canDelete = true, BaseItemKind type = BaseItemKind.episode, String? status}) =>
@@ -139,12 +142,12 @@ const Map<ShortcutActivator, Intent> _webShortcuts = {
 };
 
 Future<void> _pump(WidgetTester tester, _Service service,
-    {Map<ShortcutActivator, Intent>? shortcuts, bool manage = true}) async {
+    {Map<ShortcutActivator, Intent>? shortcuts, bool manage = true, JtTimersState timers = JtTimersState.empty}) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
         userProvider.overrideWith(() => _FakeUser(manage: manage)),
-        jtTimersProvider.overrideWith(_EmptyTimers.new),
+        jtTimersProvider.overrideWith(() => _Timers(timers)),
         jellyApiProvider.overrideWith(() => _Api(service)),
       ],
       child: MaterialApp(
@@ -152,20 +155,24 @@ Future<void> _pump(WidgetTester tester, _Service service,
         locale: const Locale('nl'),
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        builder: (context, child) => AdaptiveLayout(
-          data: AdaptiveLayoutModel(
-            viewSize: ViewSize.television,
-            layoutMode: LayoutMode.dual,
-            inputDevice: InputDevice.dPad,
-            platform: TargetPlatform.android,
-            isDesktop: false,
-            posterDefaults: const PosterDefaults(size: 350, ratio: 0.55),
-            controller: {for (final tab in HomeTabs.values) tab: ScrollController()},
-            sideBarWidth: 0,
-            topBarHeight: 0,
-            statusBarHeight: 0,
+        // AdaptiveLayoutModel does not set this: on a remote the real app does (adaptive_layout.dart).
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context).copyWith(navigationMode: NavigationMode.directional),
+          child: AdaptiveLayout(
+            data: AdaptiveLayoutModel(
+              viewSize: ViewSize.television,
+              layoutMode: LayoutMode.dual,
+              inputDevice: InputDevice.dPad,
+              platform: TargetPlatform.android,
+              isDesktop: false,
+              posterDefaults: const PosterDefaults(size: 350, ratio: 0.55),
+              controller: {for (final tab in HomeTabs.values) tab: ScrollController()},
+              sideBarWidth: 0,
+              topBarHeight: 0,
+              statusBarHeight: 0,
+            ),
+            child: child!,
           ),
-          child: child!,
         ),
         home: Builder(
           builder: (context) {
@@ -198,6 +205,31 @@ Future<void> _downTo(WidgetTester tester, String label) async {
   }
   expect(_focusedText(tester), label);
 }
+
+AnimatedContainer? _ring() =>
+    FocusManager.instance.primaryFocus?.context?.findAncestorWidgetOfExactType<AnimatedContainer>();
+
+/// Whether the row or heading with the focus shows the ring.
+bool _ringVisible() {
+  final border = (_ring()?.decoration as BoxDecoration?)?.border as Border?;
+  return border != null && border.top.color != Colors.transparent;
+}
+
+/// The ring, and so all lines of the row, lies inside the list.
+void _expectRowOnScreen(WidgetTester tester, {String? reason}) {
+  final ring = tester.getRect(find.byWidget(_ring()!));
+  final list = tester.getRect(find.byType(ListView));
+  expect(ring.top, greaterThanOrEqualTo(list.top), reason: reason);
+  expect(ring.bottom, lessThanOrEqualTo(list.bottom), reason: reason);
+}
+
+final _timers = JtTimersState.from(
+  [
+    TimerInfoDto(id: 't1', name: 'Film', channelName: 'VTM', status: RecordingStatus.$new, startDate: DateTime(2026, 11, 2, 20)),
+    TimerInfoDto(id: 't2', name: 'Journaal', channelName: 'VRT', status: RecordingStatus.inprogress, startDate: DateTime(2026, 11, 2, 21)),
+  ],
+  const [SeriesTimerInfoDto(id: 's1', name: 'Reeks')],
+);
 
 void main() {
   group('jtCanDeleteRecording', () {
@@ -328,5 +360,98 @@ void main() {
     await _pump(tester, _Service([])..listStatus = 500);
     expect(find.text('Opnames laden mislukt'), findsOneWidget);
     expect(find.text('Komende opnames'), findsOneWidget);
+  });
+
+  group('directional (B9)', () {
+    testWidgets('every button is reachable, also past a row without one, and each stop shows the focus',
+        (tester) async {
+      tester.view.physicalSize = const Size(1280, 1400);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await _pump(
+        tester,
+        _Service([_recording('1'), _recording('2', status: 'InProgress'), _recording('3')]),
+        timers: _timers,
+      );
+
+      expect(_focusedText(tester), 'Opgenomen');
+      final stops = <String?>[];
+      for (var i = 0; i < 6; i++) {
+        await _key(tester, LogicalKeyboardKey.arrowDown);
+        stops.add(_focusedText(tester));
+        expect(_ringVisible(), isTrue, reason: 'stop $i: ${stops.last}');
+      }
+      expect(stops, [
+        'Verwijderen',
+        'VTM Nieuws',
+        'Verwijderen',
+        'Reeks annuleren',
+        'Opname annuleren',
+        'Stop opname',
+      ]);
+
+      // And back up the same way.
+      final back = <String?>[];
+      for (var i = 0; i < 6; i++) {
+        await _key(tester, LogicalKeyboardKey.arrowUp);
+        back.add(_focusedText(tester));
+      }
+      expect(back, ['Opname annuleren', 'Reeks annuleren', 'Verwijderen', 'VTM Nieuws', 'Verwijderen', 'Opgenomen']);
+    });
+
+    testWidgets('OK on each kind of button opens its dialog, declining puts the focus back', (tester) async {
+      tester.view.physicalSize = const Size(1280, 1400);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await _pump(tester, _Service([_recording('1')]), timers: _timers);
+
+      for (final label in ['Verwijderen', 'Reeks annuleren', 'Opname annuleren', 'Stop opname']) {
+        await _downTo(tester, label);
+        await _key(tester, LogicalKeyboardKey.select);
+        expect(find.byType(AlertDialog), findsOneWidget, reason: label);
+        await _key(tester, LogicalKeyboardKey.select);
+        expect(find.byType(AlertDialog), findsNothing, reason: label);
+        expect(_focusedText(tester), label);
+      }
+    });
+
+    testWidgets('a long list without buttons scrolls to the end and back with the D-pad', (tester) async {
+      tester.view.physicalSize = const Size(1280, 720);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final items = [for (var i = 1; i <= 28; i++) _recording('$i', canDelete: false)];
+      await _pump(tester, _Service(items), manage: false);
+
+      final position = tester.state<ScrollableState>(find.byType(Scrollable).last).position;
+      for (var i = 0; i < 28; i++) {
+        await _key(tester, LogicalKeyboardKey.arrowDown);
+        expect(_focusedText(tester), 'VTM Nieuws', reason: 'row $i');
+        expect(_ringVisible(), isTrue, reason: 'row $i');
+        _expectRowOnScreen(tester, reason: 'row $i');
+      }
+      expect(position.pixels, position.maxScrollExtent);
+      expect(position.maxScrollExtent, greaterThan(0));
+
+      for (var i = 0; i < 28; i++) {
+        await _key(tester, LogicalKeyboardKey.arrowUp);
+        _expectRowOnScreen(tester, reason: 'row $i');
+      }
+      expect(_focusedText(tester), 'Opgenomen');
+      expect(position.pixels, 0);
+    });
+
+    testWidgets('a button deep in a long list is reached and shown', (tester) async {
+      tester.view.physicalSize = const Size(1280, 720);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final items = [for (var i = 1; i <= 19; i++) _recording('$i', canDelete: false), _recording('20')];
+      await _pump(tester, _Service(items));
+
+      for (var i = 0; i < 20; i++) {
+        await _key(tester, LogicalKeyboardKey.arrowDown);
+      }
+      expect(_focusedText(tester), 'Verwijderen');
+      _expectRowOnScreen(tester);
+    });
   });
 }
