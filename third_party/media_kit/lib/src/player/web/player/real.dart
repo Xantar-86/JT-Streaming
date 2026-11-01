@@ -83,6 +83,11 @@ class WebPlayer extends PlatformPlayer {
         });
       });
       element.onPause.listen((_) {
+        // JT-PATCH (B2): a pause nobody asked for, see [_jtResumeUntil].
+        if (DateTime.now().isBefore(_jtResumeUntil) && !element.ended) {
+          _jtPlay();
+          return;
+        }
         lock.synchronized(() async {
           // PlayerState.state.playing & PlayerState.stream.playing
           state = state.copyWith(playing: false);
@@ -410,13 +415,8 @@ class WebPlayer extends PlatformPlayer {
       _loadSource(_playlist[_index]);
 
       if (play) {
-        element.play().toDart.catchError((error) {
-          final e = error as web.DOMException;
-          if (!errorController.isClosed) {
-            errorController.add(e.message);
-          }
-          return null;
-        });
+        _jtOpenResumeWindow(); // JT-PATCH (B2)
+        _jtPlay();
       } else {
         // A minimal quirk to match the native backend behavior.
         state = state.copyWith(
@@ -456,6 +456,7 @@ class WebPlayer extends PlatformPlayer {
         trackController.add(Track());
       }
 
+      _jtCloseResumeWindow(); // JT-PATCH (B2)
       _destroyHls(); // JT-PATCH (fix 1d)
       element
         ..src = ''
@@ -561,16 +562,7 @@ class WebPlayer extends PlatformPlayer {
       }
       await waitForPlayerInitialization;
       await waitForVideoControllerInitializationIfAttached;
-      element.play().toDart.catchError(
-        (error) {
-          // PlayerStream.error
-          final e = error as web.DOMException;
-          if (!errorController.isClosed) {
-            errorController.add(e.message);
-          }
-          return null;
-        },
-      );
+      _jtPlay();
     }
 
     if (synchronized) {
@@ -588,6 +580,7 @@ class WebPlayer extends PlatformPlayer {
       }
       await waitForPlayerInitialization;
       await waitForVideoControllerInitializationIfAttached;
+      _jtCloseResumeWindow(); // JT-PATCH (B2)
       element.pause();
     }
 
@@ -1552,6 +1545,50 @@ class WebPlayer extends PlatformPlayer {
   }
 
   // JT-PATCH (fix 1d)
+  // JT-PATCH (B2): every new HtmlElementView takes this same <video> out of its old,
+  // detached platform view and reaches the page a frame later. The browser pauses a
+  // media element that left a parent and isn't in a document on the next task, so
+  // each start after the first stopped. A user can't tell that from a pause.
+  // The time to placement isn't fixed (a movie waits 5 s in setAudioTrack first), so
+  // the window lasts until the <video> is in the page plus a margin for the late
+  // pause event. A media key later on has to stay a pause.
+  static const _jtResumeMargin = Duration(seconds: 1);
+  static const _jtResumeLimit = Duration(seconds: 30);
+  DateTime _jtResumeUntil = DateTime(0);
+  Timer? _jtPlacement;
+
+  void _jtOpenResumeWindow() {
+    final limit = DateTime.now().add(_jtResumeLimit);
+    DateTime? placed;
+    _jtResumeUntil = limit;
+    _jtPlacement?.cancel();
+    _jtPlacement = Timer.periodic(const Duration(milliseconds: 100), (_) {
+      final now = DateTime.now();
+      // An old platform view can still hold the <video> at open and drop it after.
+      placed = element.isConnected ? placed ?? now : null;
+      final until = placed?.add(_jtResumeMargin) ?? limit;
+      _jtResumeUntil = until.isBefore(limit) ? until : limit;
+      if (!now.isBefore(_jtResumeUntil)) _jtCloseResumeWindow();
+    });
+  }
+
+  void _jtCloseResumeWindow() {
+    _jtPlacement?.cancel();
+    _jtPlacement = null;
+    _jtResumeUntil = DateTime(0);
+  }
+
+  void _jtPlay() {
+    element.play().toDart.catchError((error) {
+      // PlayerStream.error
+      final e = error as web.DOMException;
+      if (!errorController.isClosed) {
+        errorController.add(e.message);
+      }
+      return null;
+    });
+  }
+
   void _destroyHls() {
     final hls = _hls;
     _hls = null;

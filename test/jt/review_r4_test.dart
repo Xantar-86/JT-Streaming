@@ -346,7 +346,7 @@ void main() {
     expect(container.read(playBackModel), isNull);
   });
 
-  testWidgets('R5 X terwijl Stopped hangt: Close volgt na de time-out, geen dubbele Stopped', (tester) async {
+  testWidgets('R5 X terwijl Stopped hangt: geen Close, geen dubbele Stopped', (tester) async {
     await pumpApp(tester);
     player.holdAudioTrack = Completer();
     service.holdStop = Completer();
@@ -355,12 +355,12 @@ void main() {
     await settle(tester);
 
     await tapX(tester);
-    await tester.pump(const Duration(seconds: 4));
-    expect(service.calls, ['stopped:new', 'close:new']);
+    await tester.pump(const Duration(seconds: 12));
+    expect(service.calls, ['stopped:new']);
 
     player.holdAudioTrack!.complete();
     await settle(tester);
-    expect(service.calls, ['stopped:new', 'close:new']);
+    expect(service.calls, ['stopped:new']);
     expect(player.calls, isNot(contains('play')));
     expect(container.read(playBackModel), isNull);
   });

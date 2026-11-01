@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/widgets.dart';
 
 import 'package:chopper/chopper.dart' as chopper;
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -30,6 +31,7 @@ class _FakeService implements JellyService {
   bool failStop = false;
   int stopStatus = 204;
   Completer<void>? holdStop;
+  Duration stopDelay = Duration.zero;
 
   chopper.Response<void> get _ok => chopper.Response(http.Response('', 204), null);
 
@@ -38,6 +40,7 @@ class _FakeService implements JellyService {
     calls.add('stopped');
     stops.add(body);
     await holdStop?.future;
+    if (stopDelay > Duration.zero) await Future<void>.delayed(stopDelay);
     if (failStop) throw Exception('offline');
     return chopper.Response(http.Response('', stopStatus), null);
   }
@@ -177,6 +180,54 @@ void main() {
     expect(service.calls, ['stopped']);
   });
 
+  group('a slow stop', () {
+    for (final seconds in [4, 12]) {
+      test('answered after $seconds s gets no close', () {
+        fakeAsync((async) {
+          service.stopDelay = Duration(seconds: seconds);
+          model().closeLiveStream(ref);
+          async.elapse(const Duration(seconds: 20));
+
+          expect(service.calls, ['stopped']);
+        });
+      });
+    }
+
+    test('that fails after the wait still closes, once', () {
+      fakeAsync((async) {
+        service.stopDelay = const Duration(seconds: 12);
+        service.failStop = true;
+        final tv = model();
+        var done = false;
+        tv.closeLiveStream(ref).then((_) => done = true);
+
+        async.elapse(const Duration(seconds: 10));
+        expect(done, isTrue);
+        expect(service.calls, ['stopped']);
+
+        tv.copyWith(position: const Duration(seconds: 5)).playbackStopped(Duration.zero, null, ref);
+        async.elapse(const Duration(seconds: 3));
+        expect(service.calls, ['stopped', 'close:stream-1']);
+      });
+    });
+
+    test('that never gets an answer gets no close, the caller goes on after the wait', () {
+      fakeAsync((async) {
+        service.holdStop = Completer();
+        var done = false;
+        model().playbackStopped(Duration.zero, null, ref).then((_) => done = true);
+
+        async.elapse(const Duration(seconds: 9));
+        expect(done, isFalse);
+        async.elapse(const Duration(seconds: 1));
+        expect(done, isTrue);
+
+        async.elapse(const Duration(minutes: 5));
+        expect(service.calls, ['stopped']);
+      });
+    });
+  });
+
   group('leaving the page', () {
     test('sends the stop with both ids and no close', () {
       model().closeLiveStreamOnPageExit(ref);
@@ -247,6 +298,31 @@ void main() {
       await Future.wait([first, last]);
 
       expect(service.calls, ['stopped', 'open:b', 'stopped', 'open:d', 'load:d']);
+    });
+
+    // Real time: the zap queue is a static future, it won't run in a fakeAsync zone.
+    for (final seconds in [4, 9]) {
+      test('waits for a stop of $seconds s, also past the time-out on opening', () async {
+        service.stopDelay = Duration(seconds: seconds);
+        final zap = helper.loadTVChannel(channelNamed('new'));
+
+        await Future<void>.delayed(Duration(seconds: seconds) - const Duration(milliseconds: 500));
+        expect(service.calls, ['stopped']);
+
+        await zap;
+        expect(service.calls, ['stopped', 'open:new', 'load:new']);
+      });
+    }
+
+    test('goes on after the wait when the stop gets no answer', () async {
+      service.holdStop = Completer();
+      final zap = helper.loadTVChannel(channelNamed('new'));
+
+      await Future<void>.delayed(const Duration(milliseconds: 9500));
+      expect(service.calls, ['stopped']);
+
+      await zap;
+      expect(service.calls, ['stopped', 'open:new', 'load:new']);
     });
 
     test('a failed stop falls back to a close before the new stream opens', () async {
