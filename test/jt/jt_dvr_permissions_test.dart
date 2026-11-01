@@ -82,7 +82,7 @@ void main() {
   testWidgets('without EnableLiveTvManagement no recording buttons are shown', (tester) async {
     await _pump(tester, _account(false));
     expect(find.text('Record'), findsNothing);
-    expect(find.text('Scheduled recordings'), findsNothing);
+    expect(find.text('Recordings'), findsNothing);
     expect(find.byType(ElevatedButton), findsNothing);
   });
 
@@ -94,6 +94,6 @@ void main() {
   testWidgets('with EnableLiveTvManagement a future program can be recorded', (tester) async {
     await _pump(tester, _account(true));
     expect(find.text('Record'), findsOneWidget);
-    expect(find.text('Scheduled recordings'), findsOneWidget);
+    expect(find.text('Recordings'), findsOneWidget);
   });
 }

@@ -48,4 +48,29 @@ extension JtDvr on JellyService {
     if (!response.isSuccessful) debugPrint('[jt-dvr] GET /LiveTv/SeriesTimers failed: ${response.statusCode}');
     return response.body?.items ?? const [];
   }
+
+  /// Newest first (server order). Throws when the request fails, so the page
+  /// can tell "no recordings" from "could not load them".
+  Future<List<BaseItemDto>> jtRecordings() async {
+    final response = await api.liveTvRecordingsGet(
+      enableImages: false,
+      enableUserData: false,
+      fields: const [ItemFields.candelete, ItemFields.datecreated],
+    );
+    if (!response.isSuccessful) throw Exception('GET /LiveTv/Recordings failed: ${response.statusCode}');
+    return response.body?.items ?? const [];
+  }
+
+  /// DELETE /Items/{id}, not /LiveTv/Recordings/{id}: only the first checks
+  /// CanDelete and removes the file, the second leaves it on disk.
+  Future<bool> jtDeleteRecording(String id) async {
+    try {
+      final response = await deleteItem(id);
+      if (!response.isSuccessful) debugPrint('[jt-dvr] DELETE /Items failed: ${response.statusCode}');
+      return response.isSuccessful;
+    } catch (error) {
+      debugPrint('[jt-dvr] DELETE /Items failed: $error');
+      return false;
+    }
+  }
 }

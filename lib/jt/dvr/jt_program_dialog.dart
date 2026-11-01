@@ -9,7 +9,9 @@ import 'package:fladder/jellyfin/jellyfin_open_api.swagger.dart';
 import 'package:fladder/jt/dvr/jt_dvr_service.dart';
 import 'package:fladder/jt/dvr/jt_record_actions.dart';
 import 'package:fladder/jt/dvr/jt_record_buttons.dart';
+import 'package:fladder/jt/dvr/jt_recordings_provider.dart';
 import 'package:fladder/jt/dvr/jt_timers_provider.dart';
+import 'package:fladder/jt/guide/jt_guide_keys.dart';
 import 'package:fladder/models/items/channel_model.dart';
 import 'package:fladder/models/items/channel_program.dart';
 import 'package:fladder/providers/api_provider.dart';
@@ -94,25 +96,28 @@ Future<void> showJtPastProgramDialog(
 Future<bool> _confirm(BuildContext context, String title, String content, String acceptTitle) async {
   final result = await showDialog<bool>(
     context: context,
-    builder: (dialogContext) => AlertDialog(
-      title: Text(title),
-      content: Text(content),
-      actions: [
-        ElevatedButton(
-          autofocus: AdaptiveLayout.inputDeviceOf(dialogContext) == InputDevice.dPad,
-          onPressed: () => Navigator.of(dialogContext).pop(false),
-          child: Text(dialogContext.localized.decline),
-        ),
-        ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Theme.of(dialogContext).colorScheme.errorContainer,
-            foregroundColor: Theme.of(dialogContext).colorScheme.onErrorContainer,
-            iconColor: Theme.of(dialogContext).colorScheme.onErrorContainer,
+    builder: (dialogContext) => Shortcuts(
+      shortcuts: jtGuideArrowShortcuts,
+      child: AlertDialog(
+        title: Text(title),
+        content: Text(content),
+        actions: [
+          ElevatedButton(
+            autofocus: AdaptiveLayout.inputDeviceOf(dialogContext) == InputDevice.dPad,
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(dialogContext.localized.decline),
           ),
-          onPressed: () => Navigator.of(dialogContext).pop(true),
-          child: Text(acceptTitle),
-        ),
-      ],
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Theme.of(dialogContext).colorScheme.errorContainer,
+              foregroundColor: Theme.of(dialogContext).colorScheme.onErrorContainer,
+              iconColor: Theme.of(dialogContext).colorScheme.onErrorContainer,
+            ),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(acceptTitle),
+          ),
+        ],
+      ),
     ),
   );
   return result ?? false;
@@ -223,7 +228,35 @@ Future<bool> jtCancelTimerWithConfirm(BuildContext context, ProviderContainer co
   if (!confirmed) return false;
   final ok = await container.read(jellyApiProvider).jtCancelTimer(timerId);
   FladderSnack.show(ok ? l10n.jtDvrCancelSuccess : l10n.jtDvrError);
-  if (ok) container.invalidate(jtTimersProvider);
+  if (ok) {
+    container.invalidate(jtTimersProvider);
+    // A stopped recording stays on the server, now as a deletable one.
+    container.invalidate(jtRecordingsProvider);
+  }
+  return ok;
+}
+
+/// Delete a finished recording and its file, from the recordings page.
+Future<bool> jtDeleteRecordingWithConfirm(
+  BuildContext context,
+  ProviderContainer container,
+  BaseItemDto recording,
+) async {
+  final l10n = context.localized;
+  final recordingId = recording.id;
+  if (recordingId == null || !jtCanDeleteRecording(recording)) return false;
+  final confirmed = await _confirm(
+    context,
+    l10n.jtDvrDeleteTitle,
+    l10n.jtDvrDeleteConfirm(
+      [jtRecordingTitle(recording), jtRecordingDate(recording)].nonNulls.join(' · '),
+    ),
+    l10n.delete,
+  );
+  if (!confirmed) return false;
+  final ok = await container.read(jellyApiProvider).jtDeleteRecording(recordingId);
+  FladderSnack.show(ok ? l10n.jtDvrDeleteSuccess : l10n.jtDvrDeleteError);
+  container.invalidate(jtRecordingsProvider);
   return ok;
 }
 

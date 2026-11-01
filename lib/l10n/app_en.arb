@@ -2870,7 +2870,19 @@
   "jtDvrCancelRecording": "Cancel recording",
   "jtDvrCancelSeries": "Cancel series",
   "jtDvrStopRecording": "Stop recording",
-  "jtDvrScheduled": "Scheduled recordings",
+  "jtDvrRecordings": "Recordings",
+  "jtDvrFinished": "Recorded",
+  "jtDvrFinishedNone": "No recordings",
+  "jtDvrFinishedError": "Could not load the recordings",
+  "jtDvrDeleteTitle": "Delete recording",
+  "jtDvrDeleteConfirm": "Permanently delete \"{name}\"? The file is removed from the server.",
+  "@jtDvrDeleteConfirm": {
+    "placeholders": {
+      "name": {"type": "String"}
+    }
+  },
+  "jtDvrDeleteSuccess": "Recording deleted",
+  "jtDvrDeleteError": "Could not delete the recording",
   "jtDvrSeriesHeader": "Series",
   "jtDvrUpcoming": "Upcoming recordings",
   "jtDvrNone": "No scheduled recordings",

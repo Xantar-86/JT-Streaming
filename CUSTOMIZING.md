@@ -93,7 +93,7 @@ Code in `lib/jt/dvr/` (ontwerp: `docs/ontwerp-dvr.md` in de projectmap). Alleen 
 met het Jellyfin-recht *Live TV-opnames beheren* (`Policy.EnableLiveTvManagement`); de server dwingt
 hetzelfde af. Marges (vooraf/achteraf) komen uit de Live TV-instellingen van de server en worden alleen
 getoond. Teksten: sleutels `jtDvr…` achteraan in `lib/l10n/app_en.arb` en `app_nl.arb`. Hooks
-(`// JT-HOOK: dvr-…`): `live_tv_screen.dart` (dialoog + knop "Geplande opnames"), `channel_row.dart`
+(`// JT-HOOK: dvr-…`): `live_tv_screen.dart` (dialoog + knop "Opnames"), `channel_row.dart`
 (rood bolletje), `video_player_guide_wrapper.dart` en `channel_program_item.dart` (knoppen).
 
 ### Gids-navigatie
