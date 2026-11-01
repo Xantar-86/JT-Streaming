@@ -19,7 +19,7 @@ class JtScheduledRecordingsButton extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (!ref.watch(jtCanManageRecordingsProvider)) return const SizedBox.shrink();
+    if (!ref.watch(jtCanSeeRecordingsProvider)) return const SizedBox.shrink();
     return ElevatedButton.icon(
       onPressed: () => Navigator.of(context).push(
         MaterialPageRoute(builder: (_) => const JtScheduledRecordingsPage()),
@@ -101,6 +101,8 @@ class _JtScheduledList extends ConsumerWidget {
     final l10n = context.localized;
     final theme = Theme.of(context);
     final container = ProviderScope.containerOf(context, listen: false);
+    // Without management: only the finished recordings, nothing to plan or cancel.
+    final canManage = ref.watch(jtCanManageRecordingsProvider);
 
     final locale = Localizations.localeOf(context).toLanguageTag();
     final byDay = groupBy(state.timers, (TimerInfoDto t) {
@@ -137,70 +139,72 @@ class _JtScheduledList extends ConsumerWidget {
                 ]
               : items.map((recording) => _JtRecordingTile(recording: recording)).toList(),
         ),
-        const Divider(),
-        if (state.series.isNotEmpty) ...[
-          Text(l10n.jtDvrSeriesHeader, style: theme.textTheme.titleLarge),
-          ...state.series.map(
-            (series) => ListTile(
-              leading: const Icon(Icons.fiber_smart_record, color: Colors.red),
-              title: Text(series.name ?? ''),
-              subtitle: Text([
-                (series.recordAnyChannel ?? false) ? l10n.jtDvrAnyChannelShort : (series.channelName ?? ''),
-                l10n.jtDvrNewOnly((series.recordNewOnly ?? false) ? l10n.jtDvrYes : l10n.jtDvrNo),
-                l10n.jtDvrPadding(
-                  minutes(series.prePaddingSeconds),
-                  minutes(series.postPaddingSeconds),
+        if (canManage) ...[
+          const Divider(),
+          if (state.series.isNotEmpty) ...[
+            Text(l10n.jtDvrSeriesHeader, style: theme.textTheme.titleLarge),
+            ...state.series.map(
+              (series) => ListTile(
+                leading: const Icon(Icons.fiber_smart_record, color: Colors.red),
+                title: Text(series.name ?? ''),
+                subtitle: Text([
+                  (series.recordAnyChannel ?? false) ? l10n.jtDvrAnyChannelShort : (series.channelName ?? ''),
+                  l10n.jtDvrNewOnly((series.recordNewOnly ?? false) ? l10n.jtDvrYes : l10n.jtDvrNo),
+                  l10n.jtDvrPadding(
+                    minutes(series.prePaddingSeconds),
+                    minutes(series.postPaddingSeconds),
+                  ),
+                ].where((s) => s.isNotEmpty).join(' · ')),
+                trailing: ElevatedButton(
+                  onPressed: series.id == null
+                      ? null
+                      : () => jtCancelSeriesWithConfirm(context, container, series.id!, series.name ?? ''),
+                  child: Text(l10n.jtDvrCancelSeries),
                 ),
-              ].where((s) => s.isNotEmpty).join(' · ')),
-              trailing: ElevatedButton(
-                onPressed: series.id == null
-                    ? null
-                    : () => jtCancelSeriesWithConfirm(context, container, series.id!, series.name ?? ''),
-                child: Text(l10n.jtDvrCancelSeries),
               ),
             ),
-          ),
-          const Divider(),
-        ],
-        Text(l10n.jtDvrUpcoming, style: theme.textTheme.titleLarge),
-        if (state.timers.isEmpty)
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Text(l10n.jtDvrNone),
-          ),
-        ...byDay.entries.expand(
-          (day) => [
-            Padding(
-              padding: const EdgeInsets.only(top: 12, bottom: 4),
-              child: Text(DateFormat.yMMMMd(locale).format(day.key), style: theme.textTheme.titleMedium),
-            ),
-            ...day.value.map((timer) {
-              final running = timer.status == RecordingStatus.inprogress;
-              final status = switch (timer.status) {
-                RecordingStatus.inprogress => l10n.jtDvrInProgress,
-                RecordingStatus.$new || null => l10n.jtDvrStatusScheduled,
-                final other => other.value ?? l10n.jtDvrStatusScheduled,
-              };
-              return ListTile(
-                leading: (timer.seriesTimerId?.isNotEmpty ?? false)
-                    ? const Icon(Icons.fiber_smart_record)
-                    : const Icon(Icons.fiber_manual_record_outlined),
-                title: Text(timer.name ?? ''),
-                subtitle: Text.rich(TextSpan(children: [
-                  TextSpan(text: '${timer.channelName ?? ''} · ${time(timer.startDate)}–${time(timer.endDate)} · '),
-                  TextSpan(
-                    text: status,
-                    style: running ? const TextStyle(color: Colors.red, fontWeight: FontWeight.bold) : null,
-                  ),
-                ])),
-                trailing: ElevatedButton(
-                  onPressed: () => jtCancelTimerWithConfirm(context, container, timer),
-                  child: Text(running ? l10n.jtDvrStopRecording : l10n.jtDvrCancelRecording),
-                ),
-              );
-            }),
+            const Divider(),
           ],
-        ),
+          Text(l10n.jtDvrUpcoming, style: theme.textTheme.titleLarge),
+          if (state.timers.isEmpty)
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(l10n.jtDvrNone),
+            ),
+          ...byDay.entries.expand(
+            (day) => [
+              Padding(
+                padding: const EdgeInsets.only(top: 12, bottom: 4),
+                child: Text(DateFormat.yMMMMd(locale).format(day.key), style: theme.textTheme.titleMedium),
+              ),
+              ...day.value.map((timer) {
+                final running = timer.status == RecordingStatus.inprogress;
+                final status = switch (timer.status) {
+                  RecordingStatus.inprogress => l10n.jtDvrInProgress,
+                  RecordingStatus.$new || null => l10n.jtDvrStatusScheduled,
+                  final other => other.value ?? l10n.jtDvrStatusScheduled,
+                };
+                return ListTile(
+                  leading: (timer.seriesTimerId?.isNotEmpty ?? false)
+                      ? const Icon(Icons.fiber_smart_record)
+                      : const Icon(Icons.fiber_manual_record_outlined),
+                  title: Text(timer.name ?? ''),
+                  subtitle: Text.rich(TextSpan(children: [
+                    TextSpan(text: '${timer.channelName ?? ''} · ${time(timer.startDate)}–${time(timer.endDate)} · '),
+                    TextSpan(
+                      text: status,
+                      style: running ? const TextStyle(color: Colors.red, fontWeight: FontWeight.bold) : null,
+                    ),
+                  ])),
+                  trailing: ElevatedButton(
+                    onPressed: () => jtCancelTimerWithConfirm(context, container, timer),
+                    child: Text(running ? l10n.jtDvrStopRecording : l10n.jtDvrCancelRecording),
+                  ),
+                );
+              }),
+            ],
+          ),
+        ],
       ],
     );
   }

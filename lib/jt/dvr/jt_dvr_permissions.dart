@@ -10,3 +10,10 @@ bool jtCanManageRecordings(AccountModel? account) => account?.policy?.enableLive
 
 /// Only notifies dependants when the boolean actually changes.
 final jtCanManageRecordingsProvider = Provider<bool>((ref) => jtCanManageRecordings(ref.watch(userProvider)));
+
+/// The list of finished recordings needs Live TV access only: the delete right
+/// comes per recording from the server (CanDelete), not from this check.
+bool jtCanSeeRecordings(AccountModel? account) =>
+    (account?.policy?.enableLiveTvAccess ?? false) || jtCanManageRecordings(account);
+
+final jtCanSeeRecordingsProvider = Provider<bool>((ref) => jtCanSeeRecordings(ref.watch(userProvider)));

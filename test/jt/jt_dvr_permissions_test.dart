@@ -73,6 +73,14 @@ Future<void> _pump(WidgetTester tester, AccountModel? account) async {
 }
 
 void main() {
+  test('finished recordings need Live TV access, not management', () {
+    const access = UserPolicy(enableLiveTvAccess: true, authenticationProviderId: '', passwordResetProviderId: '');
+    expect(jtCanSeeRecordings(null), isFalse);
+    expect(jtCanSeeRecordings(_account(false)), isFalse);
+    expect(jtCanSeeRecordings(_account(true)), isTrue);
+    expect(jtCanSeeRecordings(_account(false).copyWith(policy: access)), isTrue);
+  });
+
   test('jtCanManageRecordings follows Policy.EnableLiveTvManagement', () {
     expect(jtCanManageRecordings(null), isFalse);
     expect(jtCanManageRecordings(_account(false)), isFalse);

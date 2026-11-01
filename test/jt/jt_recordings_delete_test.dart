@@ -92,6 +92,9 @@ class _Api extends JellyApi {
 }
 
 class _FakeUser extends User {
+  _FakeUser({this.manage = true});
+  final bool manage;
+
   @override
   AccountModel? build() => AccountModel(
         name: 'jochen',
@@ -99,8 +102,9 @@ class _FakeUser extends User {
         avatar: '',
         lastUsed: DateTime(2026),
         credentials: CredentialsModel.internal(),
-        policy: const UserPolicy(
-          enableLiveTvManagement: true,
+        policy: UserPolicy(
+          enableLiveTvManagement: manage,
+          enableLiveTvAccess: true,
           authenticationProviderId: '',
           passwordResetProviderId: '',
         ),
@@ -134,11 +138,12 @@ const Map<ShortcutActivator, Intent> _webShortcuts = {
   SingleActivator(LogicalKeyboardKey.arrowRight): ScrollIntent(direction: AxisDirection.right),
 };
 
-Future<void> _pump(WidgetTester tester, _Service service, {Map<ShortcutActivator, Intent>? shortcuts}) async {
+Future<void> _pump(WidgetTester tester, _Service service,
+    {Map<ShortcutActivator, Intent>? shortcuts, bool manage = true}) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
-        userProvider.overrideWith(_FakeUser.new),
+        userProvider.overrideWith(() => _FakeUser(manage: manage)),
         jtTimersProvider.overrideWith(_EmptyTimers.new),
         jellyApiProvider.overrideWith(() => _Api(service)),
       ],
@@ -287,6 +292,21 @@ void main() {
     await _key(tester, LogicalKeyboardKey.arrowRight);
     expect(_focusedText(tester), 'Verwijderen');
     await _key(tester, LogicalKeyboardKey.enter);
+    expect(service.deleted, ['1']);
+    await tester.pump(const Duration(seconds: 30));
+  });
+
+  testWidgets('fe06253c: Live TV access is enough, the server decides per recording', (tester) async {
+    final service = _Service([_recording('1'), _recording('2', canDelete: false)]);
+    await _pump(tester, service, manage: false);
+    expect(find.text('VTM Nieuws'), findsNWidgets(2));
+    expect(find.text('Verwijderen'), findsOneWidget);
+    expect(find.text('Komende opnames'), findsNothing);
+
+    await _downTo(tester, 'Verwijderen');
+    await _key(tester, LogicalKeyboardKey.select);
+    await _key(tester, LogicalKeyboardKey.arrowRight);
+    await _key(tester, LogicalKeyboardKey.select);
     expect(service.deleted, ['1']);
     await tester.pump(const Duration(seconds: 30));
   });

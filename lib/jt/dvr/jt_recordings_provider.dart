@@ -25,6 +25,6 @@ String? jtRecordingDate(BaseItemDto recording) {
 
 /// Refetched each time the page opens: recordings finish while nobody looks.
 final jtRecordingsProvider = FutureProvider.autoDispose<List<BaseItemDto>>((ref) async {
-  if (!ref.watch(jtCanManageRecordingsProvider)) return const [];
+  if (!ref.watch(jtCanSeeRecordingsProvider)) return const [];
   return ref.read(jellyApiProvider).jtRecordings();
 });
